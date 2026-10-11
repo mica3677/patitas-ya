@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PATITAS YA - Video de presentacion de 15 segundos
+PATITAS YA - Video de presentacion de 18 segundos
 Vertical 1080x1920 - 30 fps - sin audio
 
 Todo (fondos, perritos, gatitos, iconos y textos) se dibuja con codigo usando
 Cairo y se une en un MP4 con FFmpeg. No usa imagenes ni clips externos.
 
 Como usarlo:
-    python3 patitas_video.py              -> crea patitas-ya-15s.mp4
+    python3 patitas_video.py              -> crea patitas-ya-18s.mp4
     python3 patitas_video.py --preview    -> guarda fotogramas de control en previews/
 """
 
 # =====================================================================
 #  NUMERO DE WHATSAPP  ->  cambia solo lo que esta entre comillas
 # =====================================================================
-WHATSAPP_NUMERO = "[ACÁ VA EL NÚMERO]"
+WHATSAPP_NUMERO = ""          # vacio = no se muestra. Ej: "+54 9 11 1234-5678"
 
 # =====================================================================
 #  TEXTOS DEL VIDEO  ->  podes editarlos libremente.
@@ -43,9 +43,16 @@ TEXTOS = {
     # Escena 4 (12-15 s)
     "web": "patitasya.com.ar",
     "whatsapp": "WhatsApp: " + WHATSAPP_NUMERO,
+    # Escena 5 (15-18 s): datos de contacto
+    "contacto_titulo": "Encontranos",
+    "rotulo_web": "Web",
+    "rotulo_instagram": "Instagram",
+    "instagram": "@patitasya.ctess",
+    "rotulo_correo": "Correo",
+    "correo": "servicios@patitasya.com.ar",
 }
 
-ARCHIVO_SALIDA = "patitas-ya-15s.mp4"
+ARCHIVO_SALIDA = "patitas-ya-18s.mp4"
 
 # =====================================================================
 #  De aca para abajo esta el motor del video (no hace falta tocarlo).
@@ -63,7 +70,7 @@ import cairo
 import uharfbuzz as hb
 
 W, H, FPS = 1080, 1920, 30
-TOTAL = 15 * FPS                      # 450 fotogramas = 15 s exactos
+TOTAL = 18 * FPS                      # 540 fotogramas = 18 s exactos
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_DIR = os.path.join(HERE, "fonts")
 SAFE = (100, 240, 980, 1560)          # zona segura para textos (x0, y0, x1, y1)
@@ -1597,7 +1604,9 @@ def scene_end(ctx, t):
     tb.draw(ctx, 540, by, LIGHT, fx=lambda i, wi: fxw(i, wi) if wi >= n1 else (0, 0, 0, 0, 0), label="cierre")
 
     # etiquetas web + WhatsApp
-    pills = [(918, 16, MINT, TEXTOS["web"], "globe"), (1048, 21, LIGHT, TEXTOS["whatsapp"], "phone")]
+    pills = [(918, 16, MINT, TEXTOS["web"], "globe")]
+    if WHATSAPP_NUMERO.strip():
+        pills.append((1048, 21, LIGHT, TEXTOS["whatsapp"], "phone"))
     for (pcy, st, bgc, text, icon) in pills:
         fs = fit(text, "bold", 50, 860 - 2 * 40 - 66)
         tt = T(text, "bold", fs)
@@ -1656,6 +1665,111 @@ def scene_end(ctx, t):
                          ear=bump(t, 48, 7), tilt=-0.06 * math.sin(t * 0.12 + 1))
 
 
+def icon_mail(ctx, s, color):
+    rrect(ctx, -0.42 * s, -0.30 * s, 0.84 * s, 0.60 * s, 0.10 * s)
+    stroke(ctx, color, 0.08 * s)
+    ctx.move_to(-0.36 * s, -0.20 * s)
+    ctx.line_to(0, 0.06 * s)
+    ctx.line_to(0.36 * s, -0.20 * s)
+    ctx.set_line_join(cairo.LINE_JOIN_ROUND)
+    stroke(ctx, color, 0.08 * s)
+
+
+def icon_camera(ctx, s, color):
+    rrect(ctx, -0.38 * s, -0.38 * s, 0.76 * s, 0.76 * s, 0.22 * s)
+    stroke(ctx, color, 0.08 * s)
+    circle(ctx, 0, 0, 0.17 * s)
+    stroke(ctx, color, 0.08 * s)
+    circle(ctx, 0.22 * s, -0.22 * s, 0.05 * s)
+    fill(ctx, color)
+
+
+# =====================================================================
+#  ESCENA 5 (15-18 s): web, Instagram y correo
+# =====================================================================
+def scene_info(ctx, t):
+    src(ctx, MINT)
+    ctx.paint()
+    glow(ctx, 540, 900, 900, WHITE, 0.6)
+    dot_grid(ctx, t, MID, 0.08)
+    floaters(ctx, t, MID, 0.28, seed=41)
+
+    tt = TEXTOS["contacto_titulo"]
+    S = fit(tt, "black", 124, 860)
+    T(tt, "black", S).draw(ctx, 546, 418, LIGHT, fx=letter_drop(t, 6, 1.2, drop=60), pivot="glyph")
+    T(tt, "black", S).draw(ctx, 540, 410, DARK, fx=letter_drop(t, 6, 1.2, drop=60), pivot="glyph", label="info_t")
+
+    rows = [(TEXTOS["rotulo_web"], TEXTOS["web"], icon_globe),
+            (TEXTOS["rotulo_instagram"], TEXTOS["instagram"], icon_camera),
+            (TEXTOS["rotulo_correo"], TEXTOS["correo"], icon_mail)]
+    vs = min(fit(v, "bold", 58, 640) for _, v, _ in rows)
+    top0, hgt, gap = 700, 190, 28
+    card0 = top0 + (1 - ease_out_back(prog(t, 12, 12))) * 900
+
+    # mascotas asomandose sobre la primera tarjeta
+    with saved(ctx):
+        ctx.rectangle(0, 0, W, card0 + 2)
+        ctx.clip()
+        for (px, st, kind) in ((392, 20, "dog"), (688, 24, "cat")):
+            rise = spring(prog(t, st, 18))
+            if rise <= 0:
+                continue
+            hy = card0 - 78 + (1 - rise) * 260
+            if kind == "dog":
+                draw_dog(ctx, px, hy, 0.9, full=False, blink=blinks(t, [50]), tilt=0.07 * math.sin(t * 0.12),
+                         ear=0.05 * math.sin(t * 0.2))
+            else:
+                draw_cat(ctx, px, hy, 0.9, full=False, blink=blinks(t, [62]), ear=bump(t, 44, 7),
+                         tilt=-0.06 * math.sin(t * 0.11 + 1))
+
+    for i, (lab, val, icon) in enumerate(rows):
+        p = ease_out_back(prog(t, 12 + i * 4, 12))
+        if p <= 0:
+            continue
+        y0 = top0 + i * (hgt + gap) + (1 - p) * 900
+        ccy = y0 + hgt / 2
+        rrect(ctx, 110, y0 + 14, 860, hgt, 44)
+        fill(ctx, MID, 0.35)
+        rrect(ctx, 110, y0, 860, hgt, 44)
+        fill(ctx, DARK)
+        circle(ctx, 210, ccy, 62)
+        fill(ctx, LIGHT)
+        with saved(ctx):
+            ctx.translate(210, ccy)
+            icon(ctx, 84, DARK)
+        ok = "info" if p > 0.99 else None
+        T(lab, "semibold", 34).draw(ctx, 300, ccy - 22, LIGHT, align="left", label=ok)
+        T(val, "bold", vs).draw(ctx, 300, ccy + 0.36 * vs + 22, WHITE, align="left", label=ok)
+        sh = prog(t, 40 + i * 6, 16)
+        if 0 < sh < 1:
+            with saved(ctx):
+                rrect(ctx, 110, y0, 860, hgt, 44)
+                ctx.clip()
+                gx = lerp(0, 1100, sh)
+                ctx.move_to(gx - 60, y0 + hgt + 20)
+                ctx.line_to(gx + 20, y0 - 20)
+                ctx.line_to(gx + 80, y0 - 20)
+                ctx.line_to(gx, y0 + hgt + 20)
+                ctx.close_path()
+                fill(ctx, WHITE, 0.12)
+    for (px, st) in ((392, 20), (688, 24)):
+        mittens(ctx, px, card0 + 2, 0.9, 44, scale=pop(t, st + 12, 9))
+
+    # firma
+    brand = TEXTOS["marca_1"] + " " + TEXTOS["marca_2"]
+    n1 = len(TEXTOS["marca_1"].split())
+    tb = T(brand, "black", fit(brand, "black", 76, 700))
+    a = clamp(prog(t, 30, 8))
+    pw = 0.9 * tb.size
+    with saved(ctx):
+        ctx.translate(-pw / 2 - 10, 0)
+        tb.draw(ctx, 540 + pw / 2 + 20, 1468, DARK, alpha=a, fx=lambda i, wi: (1, 0, 0, 1 if wi < n1 else 0, 0), label="firma")
+        tb.draw(ctx, 540 + pw / 2 + 20, 1468, MID, alpha=a, fx=lambda i, wi: (1, 0, 0, 1 if wi >= n1 else 0, 0))
+        if a > 0:
+            with group(ctx, a):
+                icon_paw(ctx, pw, MID, ox=540 - tb.width / 2 + 10, oy=1468 - 0.36 * tb.size - 0.12 * pw)
+
+
 # =====================================================================
 #  Linea de tiempo y transiciones
 # =====================================================================
@@ -1666,9 +1780,10 @@ SCENES = [  # (fotograma inicial, fotograma final, funcion, color de fondo)
     (210, 270, lambda c, t: scene_service(c, t, 2)),
     (270, 360, scene_contact),
     (360, 450, scene_end),
+    (450, 540, scene_info),
 ]
-TRANSITIONS = {1: ("circle", 10), 2: ("push", 9), 3: ("push", 9), 4: ("stripes", 13), 5: ("circle", 10)}
-HOLD = {0: (52, 90), 1: (40, 60), 2: (40, 60), 3: (40, 60), 4: (58, 90), 5: (46, 90)}  # tramos quietos (control)
+TRANSITIONS = {1: ("circle", 10), 2: ("push", 9), 3: ("push", 9), 4: ("stripes", 13), 5: ("circle", 10), 6: ("stripes", 13)}
+HOLD = {0: (52, 90), 1: (40, 60), 2: (40, 60), 3: (40, 60), 4: (58, 90), 5: (46, 90), 6: (40, 90)}  # tramos quietos (control)
 
 
 def scene_at(f):
@@ -1831,7 +1946,7 @@ def main():
     print("  OK, sin problemas." if not probs else f"  {len(probs)} avisos.")
 
     if args.preview:
-        times = [float(x) for x in args.at.split(",")] if args.at else [1.0, 2.6, 4.6, 6.6, 8.6, 11.5, 14.5]
+        times = [float(x) for x in args.at.split(",")] if args.at else [1.0, 2.6, 4.6, 6.6, 8.6, 11.5, 14.5, 17.5]
         for p in preview(os.path.join(HERE, "previews"), times):
             print("  " + p)
         return
