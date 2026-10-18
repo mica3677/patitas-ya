@@ -2,20 +2,25 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
 <title>Generador de ilusiones</title>
 <style>
-  :root{--bg:#111;--panel:#1b1b1b;--fg:#eee;--mut:#999;--ac:#fff;--line:#333}
+  :root{--bg:#111;--panel:#1b1b1b;--fg:#eee;--mut:#999;--ac:#fff;--line:#333;color-scheme:dark}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;display:flex;flex-wrap:wrap;gap:16px;padding:16px;justify-content:center;align-items:flex-start}
-  .stage{flex:0 1 360px}
-  canvas{width:100%;aspect-ratio:9/16;background:#000;border-radius:8px;display:block}
-  .panel{flex:1 1 300px;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,sans-serif;display:flex;flex-wrap:wrap;gap:16px;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));justify-content:center;align-items:flex-start}
+  .stage{flex:0 1 360px;min-width:0;display:flex;justify-content:center}
+  canvas{width:min(100%,calc(62vh*9/16));max-width:100%;aspect-ratio:9/16;background:#000;border-radius:8px;display:block}
+  .panel{flex:1 1 300px;min-width:0;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
   h1{font-size:18px;margin:0 0 12px}
   label{display:block;margin:12px 0 4px;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
   label span{float:right;color:var(--fg)}
   select,input[type=text]{width:100%;background:#000;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
-  input[type=range]{width:100%}
+  input[type=range]{width:100%;height:32px}
+  select,input[type=text]{font-size:16px}
+  #out{margin-top:12px}
+  #out video{width:100%;max-height:60vh;border-radius:6px;background:#000}
+  #out p{margin:6px 0 0;color:var(--mut);font-size:12px}
   .row{display:flex;gap:8px;margin-top:16px}
   button{flex:1;background:var(--ac);color:#000;border:0;border-radius:6px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
   button.sec{background:#333;color:var(--fg)}
@@ -59,6 +64,7 @@
     <button id="reseed" class="sec">Nueva versión</button>
     <button id="rec">Grabar video</button>
   </div>
+  <div id="out" hidden></div>
   <div id="msg">Con 0 de pista de profundidad el cerebro puede ver el giro para los dos lados. Subila para que se vea hacia un lado fijo.</div>
 </div>
 
@@ -179,11 +185,19 @@ $('rec').onclick = () => {
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   rec.onstop = () => {
     const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(chunks, {type: mime}));
-    a.download = 'ilusion-'+$('shape').value+'.'+ext; a.click();
+    const blob = new Blob(chunks, {type: mime}), url = URL.createObjectURL(blob);
+    const name = 'ilusion-'+$('shape').value+'.'+ext;
+    const out = $('out'); out.hidden = false;
+    out.innerHTML = '<video controls playsinline loop src="'+url+'"></video><button id="save" class="sec" style="margin-top:8px;width:100%">Guardar video</button><p>Si el botón no funciona, mantené apretado el video o grabá la pantalla del celular.</p>';
+    $('save').onclick = async () => {
+      try {
+        const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+        if (dl) { await dl.save({filename: name, data: blob}); $('msg').textContent = 'Video guardado.'; }
+        else { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }
+      } catch (e) { if (!e || e.code !== 'declined') $('msg').textContent = 'No se pudo guardar desde acá. Mantené apretado el video.'; }
+    };
     recording = false; $('rec').disabled = false; $('rec').textContent = 'Grabar video';
-    $('msg').textContent = 'Listo, se descargó el video (.'+ext+').';
+    $('msg').textContent = 'Listo (.'+ext+'). Mirá la vista previa de arriba.';
   };
   recording = true; $('rec').disabled = true; rec.start();
   let left = secs; $('rec').textContent = 'Grabando… '+left+' s';
