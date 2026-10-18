@@ -22,6 +22,24 @@ FONTS_B = ["/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"]
 FONTS_I = ["/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf"]
 
 
+PALETAS = {
+    "clasico":  ("#000000", "#ffffff", "#ffffff", "#ffffff"),   # fondo, texto, puntos arriba, puntos abajo
+    "neon":     ("#05010f", "#ffffff", "#00f0ff", "#ff2bd6"),
+    "atardecer": ("#12060a", "#ffe8d6", "#ffd166", "#ff4d6d"),
+    "hielo":    ("#020b16", "#e6f7ff", "#e6f7ff", "#4cc9f0"),
+    "matrix":   ("#000000", "#b6ffb0", "#b6ffb0", "#00c853"),
+    "dorado":   ("#0b0803", "#f5deb3", "#fff1b8", "#d4a017"),
+    "violeta":  ("#0a0614", "#f3e8ff", "#f3e8ff", "#9d4edd"),
+}
+
+
+def rgb(h):
+    h = h.lstrip("#")
+    if len(h) != 6:
+        sys.exit(f"color invalido: #{h} (usa 6 digitos, ej. #ff8800)")
+    return np.array([int(h[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float32)
+
+
 def font(paths, size):
     for p in paths:
         try:
@@ -169,6 +187,11 @@ def main():
     ap.add_argument("--abajo", default="SÍGUEME SI LO LOGRASTE.")
     ap.add_argument("--seg", type=float, default=15)
     ap.add_argument("--fps", type=int, default=60)
+    ap.add_argument("--paleta", default="clasico", choices=list(PALETAS), help="colores predefinidos")
+    ap.add_argument("--fondo", help="color de fondo, ej. #000000")
+    ap.add_argument("--texto", help="color del texto")
+    ap.add_argument("--color", help="color de los puntos (arriba si hay degradado)")
+    ap.add_argument("--color2", help="color de los puntos abajo (activa el degradado)")
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
@@ -179,6 +202,15 @@ def main():
     rng = np.random.default_rng(a.semilla)
     pts = formas(a.forma, a.puntos, rng)
     texto = capa_texto(a.arriba, a.abajo)
+    pbg, ptx, pa, pb = PALETAS[a.paleta]
+    c_bg, c_tx = rgb(a.fondo or pbg), rgb(a.texto or ptx)
+    c_a = rgb(a.color or pa)
+    c_b = rgb(a.color2) if a.color2 else (rgb(pb) if not a.color else c_a)
+    base = c_bg + (c_tx - c_bg) * texto[..., None]          # fondo + texto, listo para pegar los puntos
+    # el color va pegado al objeto: por altura, o del centro al borde si la figura es plana
+    eje = pts[:, 1] if np.ptp(pts[:, 1]) >= .5 else 1 - np.hypot(pts[:, 0], pts[:, 2])
+    ty = (eje - eje.min()) / max(1e-9, np.ptp(eje))   # 0 = color de abajo, 1 = color de arriba
+    cols = c_b + (c_a - c_b) * ty[:, None]
     R = W * a.figura / 100; cy = H * .47
     tilt = math.radians(a.inclinacion); ct, st = math.cos(tilt), math.sin(tilt)
     dep = a.profundidad / 100
@@ -198,25 +230,28 @@ def main():
         x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
         x1 = x * ca + z * sa; z1 = -x * sa + z * ca
         y2 = y * ct - z1 * st; z2 = y * st + z1 * ct
-        img = Image.new("L", (bw * SS, bh * SS), 0); d = ImageDraw.Draw(img)
+        img = Image.new("RGB", (bw * SS, bh * SS), (0, 0, 0)); d = ImageDraw.Draw(img)
+        mk = Image.new("L", (bw * SS, bh * SS), 0); dm = ImageDraw.Draw(mk)
         px = (W / 2 + x1 * R - box[0]) * SS; py = (cy - y2 * R - box[1]) * SS
         r = a.tam * (1 + dep * .6 * z2) * .6 * SS
-        al = np.clip(1 - dep * .7 * (1 - z2) / 2, .08, 1) * 255
+        al = np.clip(1 - dep * .7 * (1 - z2) / 2, .08, 1)
+        pre = (cols * al[:, None]).astype(np.uint8)
         for k in range(len(px)):
-            d.ellipse((px[k] - r[k], py[k] - r[k], px[k] + r[k], py[k] + r[k]), fill=int(al[k]))
-        fig = np.asarray(img.resize((bw, bh), Image.LANCZOS), dtype=np.float32) / 255
-        out = texto.copy()
+            e = (px[k] - r[k], py[k] - r[k], px[k] + r[k], py[k] + r[k])
+            d.ellipse(e, fill=tuple(int(v) for v in pre[k])); dm.ellipse(e, fill=int(al[k] * 255))
+        col = np.asarray(img.resize((bw, bh), Image.LANCZOS), dtype=np.float32) / 255
+        cov = np.asarray(mk.resize((bw, bh), Image.LANCZOS), dtype=np.float32)[..., None] / 255
+        out = base.copy()
         sub = out[box[1]:box[3], box[0]:box[2]]
-        np.maximum(sub, fig, out=sub)
-        g = (out * 255 + .5).astype(np.uint8)
-        return g
+        sub[:] = sub * (1 - cov) + col * 255
+        return (out + .5).astype(np.uint8)
 
     if a.preview:
         Image.fromarray(fotograma(total // 7)).save("preview.png"); print("preview.png"); return
 
     salida = a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}",
-           "-r", str(a.fps), "-i", "-", "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryslow",
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+           "-r", str(a.fps), "-i", "-", "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "veryslow",
            "-crf", str(a.crf), "-tune", "grain", "-profile:v", "high", "-color_primaries", "bt709",
            "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", salida]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
