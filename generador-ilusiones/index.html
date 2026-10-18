@@ -45,6 +45,14 @@
     <option value="spring">Resorte</option>
     <option value="knot">Nudo (trébol)</option>
     <option value="mobius">Cinta de Möbius</option>
+        <option value="coneInv">Cono invertido</option>
+    <option value="galaxy">Galaxia espiral</option>
+    <option value="torusKnot">Nudo toroidal</option>
+    <option value="icosahedron">Icosaedro</option>
+    <option value="tornado">Tornado</option>
+    <option value="heart">Corazón 3D</option>
+    <option value="ripples">Ondas</option>
+    <option value="fibSphere">Esfera uniforme</option>
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
@@ -84,6 +92,7 @@ let pts = [], t0 = performance.now(), angle = 0, last = t0, recording = false;
 let seed = 1;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
+const gauss = () => Math.sqrt(-2*Math.log(rnd() + 1e-9)) * Math.cos(2*Math.PI*rnd());
 function edgeShape(n, v, e){
   const out = [];
   for (let i = 0; i < n; i++){ const [a,b] = e[Math.floor(rnd()*e.length)], u = rnd();
@@ -156,6 +165,57 @@ const shapes = {
     const out = [];
     for (let i = 0; i < n; i++){ const u = rnd()*2*Math.PI, v = (rnd()*2-1)*.35, R = .62;
       out.push([(R+v*Math.cos(u/2))*Math.cos(u), v*Math.sin(u/2)*1.2, (R+v*Math.cos(u/2))*Math.sin(u)]); }
+    return out;
+  },
+  coneInv(n){ return shapes.cone(n).map(([x,y,z]) => [x,-y,z]); },
+  galaxy(n){
+    const out = [], arms = 3;
+    for (let i = 0; i < n; i++){
+      if (rnd() < .14){ out.push([gauss()*.1, gauss()*.07, gauss()*.1]); continue; }
+      const r = Math.pow(rnd(), .65), a = Math.floor(rnd()*arms)*2*Math.PI/arms + r*3.4 + gauss()*.16*(1.1-r);
+      out.push([Math.cos(a)*r, gauss()*.025*(1.2-r), Math.sin(a)*r]);
+    }
+    return out;
+  },
+  torusKnot(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const t = rnd()*2*Math.PI, c = 2 + Math.cos(3*t);
+      out.push([c*Math.cos(2*t)/3.1 + gauss()*.03, Math.sin(3*t)*1.5/3.1 + gauss()*.03, c*Math.sin(2*t)/3.1 + gauss()*.03]); }
+    return out;
+  },
+  icosahedron(n){
+    const f = (1+Math.sqrt(5))/2, v = [];
+    for (const a of [-1,1]) for (const b of [-f,f]){ v.push([0,a,b],[a,b,0],[b,0,a]); }
+    const e = [];
+    for (let i = 0; i < v.length; i++) for (let j = i+1; j < v.length; j++){
+      const d = v[i].reduce((s,c,k) => s + (c-v[j][k])**2, 0); if (Math.abs(d-4) < .01) e.push([i,j]); }
+    const k = .95/Math.sqrt(1+f*f);
+    return edgeShape(n, v.map(p => p.map(c => c*k)), e);
+  },
+  tornado(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const y = rnd()*2-1, h = (y+1)/2, rad = (.1 + .72*Math.pow(h,1.6))*(1 + gauss()*.04),
+      a = y*5 + Math.floor(rnd()*4)*Math.PI/2 + gauss()*.07;
+      out.push([Math.cos(a)*rad, y*.95, Math.sin(a)*rad]); }
+    return out;
+  },
+  heart(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const t = rnd()*2*Math.PI, c = rnd()*2-1, s = Math.sqrt(1-c*c),
+      hx = 16*Math.pow(Math.sin(t),3), hy = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+      out.push([hx*s/17, (hy+2.5)*s/15, c*.5]); }
+    return out;
+  },
+  ripples(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const r = Math.sqrt(rnd()), a = rnd()*2*Math.PI;
+      out.push([Math.cos(a)*r, .2*Math.cos(r*15)*(1 - r*.55), Math.sin(a)*r]); }
+    return out;
+  },
+  fibSphere(n){
+    const out = [], g = Math.PI*(3-Math.sqrt(5));
+    for (let i = 0; i < n; i++){ const y = 1 - 2*(i+.5)/n, r = Math.sqrt(1-y*y);
+      out.push([Math.cos(i*g)*r, y, Math.sin(i*g)*r]); }
     return out;
   },
   helix(n){
