@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Generador de ilusiones</title>
+<style>
+  :root{--bg:#111;--panel:#1b1b1b;--fg:#eee;--mut:#999;--ac:#fff;--line:#333}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;display:flex;flex-wrap:wrap;gap:16px;padding:16px;justify-content:center;align-items:flex-start}
+  .stage{flex:0 1 360px}
+  canvas{width:100%;aspect-ratio:9/16;background:#000;border-radius:8px;display:block}
+  .panel{flex:1 1 300px;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+  h1{font-size:18px;margin:0 0 12px}
+  label{display:block;margin:12px 0 4px;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  label span{float:right;color:var(--fg)}
+  select,input[type=text]{width:100%;background:#000;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+  input[type=range]{width:100%}
+  .row{display:flex;gap:8px;margin-top:16px}
+  button{flex:1;background:var(--ac);color:#000;border:0;border-radius:6px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
+  button.sec{background:#333;color:var(--fg)}
+  button:disabled{opacity:.5;cursor:default}
+  .chk{display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--fg)}
+  #msg{margin-top:10px;color:var(--mut);font-size:12px;min-height:1.4em}
+</style>
+</head>
+<body>
+<div class="stage"><canvas id="c" width="1080" height="1920"></canvas></div>
+<div class="panel">
+  <h1>Generador de ilusiones de giro</h1>
+  <label>Forma</label>
+  <select id="shape">
+    <option value="sphere">Esfera (malla de puntos)</option>
+    <option value="cylinder">Cilindro (puntos al azar)</option>
+    <option value="cube">Cubo (aristas)</option>
+    <option value="torus">Toro (dona)</option>
+    <option value="helix">Hélice doble (ADN)</option>
+  </select>
+  <label>Cantidad de puntos <span id="vN"></span></label>
+  <input type="range" id="n" min="300" max="9000" step="100" value="2500">
+  <label>Tamaño del punto <span id="vS"></span></label>
+  <input type="range" id="s" min="1" max="8" step="0.5" value="3">
+  <label>Velocidad (vueltas/min) <span id="vV"></span></label>
+  <input type="range" id="v" min="2" max="40" step="1" value="12">
+  <label>Inclinación de cámara <span id="vT"></span></label>
+  <input type="range" id="t" min="0" max="45" step="1" value="15">
+  <label>Pista de profundidad <span id="vD"></span></label>
+  <input type="range" id="d" min="0" max="100" step="5" value="0">
+  <label>Tamaño de la figura <span id="vZ"></span></label>
+  <input type="range" id="z" min="20" max="60" step="1" value="42">
+  <label>Texto de arriba</label>
+  <input type="text" id="top" value="¿Puedes invertir el giro solo con tu mente?">
+  <label>Texto de abajo</label>
+  <input type="text" id="bot" value="SÍGUEME SI LO LOGRASTE.">
+  <label>Duración del video (s) <span id="vR"></span></label>
+  <input type="range" id="r" min="5" max="30" step="1" value="15">
+  <div class="chk"><input type="checkbox" id="rev"><label for="rev" style="margin:0;color:inherit;text-transform:none;font-size:14px">Girar al revés</label></div>
+  <div class="row">
+    <button id="reseed" class="sec">Nueva versión</button>
+    <button id="rec">Grabar video</button>
+  </div>
+  <div id="msg">Con 0 de pista de profundidad el cerebro puede ver el giro para los dos lados. Subila para que se vea hacia un lado fijo.</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+let pts = [], t0 = performance.now(), angle = 0, last = t0, recording = false;
+
+// generador con semilla para que "nueva versión" cambie los puntos al azar
+let seed = 1;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+const shapes = {
+  sphere(n){
+    // meridianos y paralelos hechos de puntos, como en el video
+    const out = [], M = 12, P = 9;
+    for (let i = 0; i < n; i++){
+      if (i % 2){ const m = Math.floor(rnd()*M), th = rnd()*Math.PI;
+        const a = m/M*2*Math.PI; out.push([Math.sin(th)*Math.cos(a), Math.cos(th), Math.sin(th)*Math.sin(a)]);
+      } else { const p = 1 + Math.floor(rnd()*P), th = p/(P+1)*Math.PI, a = rnd()*2*Math.PI;
+        out.push([Math.sin(th)*Math.cos(a), Math.cos(th), Math.sin(th)*Math.sin(a)]);
+      }
+    }
+    return out;
+  },
+  cylinder(n){
+    const out = [];
+    for (let i = 0; i < n; i++){
+      const a = rnd()*2*Math.PI, y = rnd()*2 - 1;
+      out.push([Math.cos(a)*0.55, y*0.95, Math.sin(a)*0.55]);
+    }
+    return out;
+  },
+  cube(n){
+    const out = [], c = [-.7,.7], edges = [];
+    for (const x of c) for (const y of c) for (const z of c){
+      for (let k = 0; k < 3; k++){ const p=[x,y,z]; if (p[k] < 0){ const q=[...p]; q[k]=.7; edges.push([p,q]); } }
+    }
+    for (let i = 0; i < n; i++){ const [p,q] = edges[Math.floor(rnd()*edges.length)], u = rnd();
+      out.push([p[0]+(q[0]-p[0])*u, p[1]+(q[1]-p[1])*u, p[2]+(q[2]-p[2])*u]); }
+    return out;
+  },
+  torus(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const u = rnd()*2*Math.PI, v = rnd()*2*Math.PI, R=.7, r=.28;
+      out.push([(R+r*Math.cos(v))*Math.cos(u), r*Math.sin(v), (R+r*Math.cos(v))*Math.sin(u)]); }
+    return out;
+  },
+  helix(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const s = i%3, y = rnd()*2-1, a = y*3*Math.PI;
+      if (s < 2) out.push([Math.cos(a+s*Math.PI)*.5, y, Math.sin(a+s*Math.PI)*.5]);
+      else { const b = Math.round(y*8)/8, ab = b*3*Math.PI, u = rnd()*2-1; // peldaños
+        out.push([Math.cos(ab)*.5*u, b, Math.sin(ab)*.5*u]); }
+    }
+    return out;
+  }
+};
+
+function build(){ seed = seedBase; pts = shapes[$('shape').value](+$('n').value); }
+let seedBase = 7;
+
+function wrap(text, max){
+  const words = text.split(/\s+/), lines = []; let cur = '';
+  for (const w of words){ const t = cur ? cur+' '+w : w;
+    if (ctx.measureText(t).width > max && cur){ lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur); return lines;
+}
+
+function draw(){
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  const tilt = +$('t').value*Math.PI/180, size = +$('s').value, dep = +$('d').value/100;
+  const R = W*(+$('z').value/100), cy = H*0.47;
+  const ca = Math.cos(angle), sa = Math.sin(angle), ct = Math.cos(tilt), st = Math.sin(tilt);
+  ctx.fillStyle = '#fff';
+  for (const [x,y,z] of pts){
+    const x1 = x*ca + z*sa, z1 = -x*sa + z*ca;          // giro sobre el eje vertical
+    const y2 = y*ct - z1*st, z2 = y*st + z1*ct;         // inclinación de cámara
+    // proyección ortogonal: sin perspectiva, el punto de atrás se ve igual que el de adelante
+    const k = 1 + dep*0.6*z2, a = 1 - dep*0.7*(1 - z2)/2;
+    ctx.globalAlpha = Math.max(.08, Math.min(1, a));
+    const r = size*k*(W/1080)*1.2;
+    ctx.fillRect(W/2 + x1*R - r/2, cy - y2*R - r/2, r, r);
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.font = '600 52px ui-monospace,Menlo,Consolas,monospace';
+  wrap($('top').value, W*0.8).forEach((l,i) => ctx.fillText(l, W/2, 200 + i*72));
+  ctx.font = 'italic 40px ui-monospace,Menlo,Consolas,monospace';
+  ctx.fillText($('bot').value, W/2, H - 330);
+}
+
+function frame(now){
+  const dt = Math.min(0.1, (now-last)/1000); last = now;
+  const dir = $('rev').checked ? -1 : 1;
+  angle += dir * (+$('v').value/60)*2*Math.PI*dt;
+  draw(); requestAnimationFrame(frame);
+}
+
+function labels(){
+  $('vN').textContent = $('n').value; $('vS').textContent = $('s').value;
+  $('vV').textContent = $('v').value; $('vT').textContent = $('t').value+'°';
+  $('vD').textContent = $('d').value+'%'; $('vZ').textContent = $('z').value+'%';
+  $('vR').textContent = $('r').value+' s';
+}
+['n','shape'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
+['s','v','t','d','z','r'].forEach(i => $(i).addEventListener('input', labels));
+$('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
+
+$('rec').onclick = () => {
+  if (recording) return;
+  const types = ['video/mp4;codecs=avc1','video/webm;codecs=vp9','video/webm'];
+  const mime = types.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+  if (!mime){ $('msg').textContent = 'Este navegador no puede grabar. Probá con Chrome.'; return; }
+  const rec = new MediaRecorder(cv.captureStream(30), {mimeType: mime, videoBitsPerSecond: 8e6});
+  const chunks = [], secs = +$('r').value;
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, {type: mime}));
+    a.download = 'ilusion-'+$('shape').value+'.'+ext; a.click();
+    recording = false; $('rec').disabled = false; $('rec').textContent = 'Grabar video';
+    $('msg').textContent = 'Listo, se descargó el video (.'+ext+').';
+  };
+  recording = true; $('rec').disabled = true; rec.start();
+  let left = secs; $('rec').textContent = 'Grabando… '+left+' s';
+  const iv = setInterval(() => { left--; $('rec').textContent = 'Grabando… '+left+' s';
+    if (left <= 0){ clearInterval(iv); rec.stop(); } }, 1000);
+};
+
+build(); labels(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
