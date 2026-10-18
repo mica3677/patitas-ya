@@ -31,6 +31,12 @@ def font(paths, size):
     return ImageFont.load_default()
 
 
+def _aristas(v, e, n, rng):
+    v = np.asarray(v, dtype=float); k = rng.integers(len(e), size=n); u = rng.random(n)[:, None]
+    a = v[[e[i][0] for i in k]]; b = v[[e[i][1] for i in k]]
+    return a + (b - a) * u
+
+
 def formas(nombre, n, rng):
     if nombre == "esfera":
         M, P = 12, 9
@@ -72,6 +78,25 @@ def formas(nombre, n, rng):
                 b = round(y * 8) / 8; ab = b * 3 * math.pi; u = rng.random() * 2 - 1
                 out.append([math.cos(ab) * .5 * u, b, math.sin(ab) * .5 * u])
         return np.array(out)
+    if nombre == "cono":
+        t = np.sqrt(rng.random(n)); a = rng.random(n) * 2 * math.pi
+        return np.c_[np.cos(a) * .75 * t, 1 - 2 * t, np.sin(a) * .75 * t]
+    if nombre == "piramide":
+        return _aristas([[-.7, -.8, -.7], [.7, -.8, -.7], [.7, -.8, .7], [-.7, -.8, .7], [0, .95, 0]],
+                       [(0, 1), (1, 2), (2, 3), (3, 0), (0, 4), (1, 4), (2, 4), (3, 4)], n, rng)
+    if nombre == "diamante":
+        v = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) * .95
+        return _aristas(v, [(i, j) for i in range(6) for j in range(i + 1, 6) if j != (i ^ 1)], n, rng)
+    if nombre == "resorte":
+        u = rng.random(n); a = u * 6 * 2 * math.pi
+        return np.c_[np.cos(a) * .6, u * 1.8 - .9, np.sin(a) * .6]
+    if nombre == "nudo":
+        t = rng.random(n) * 2 * math.pi; r = lambda: (rng.random(n) - .5) * .05
+        return np.c_[(np.sin(t) + 2 * np.sin(2 * t)) / 3.2 + r(), (np.cos(t) - 2 * np.cos(2 * t)) / 3.2 + r(),
+                     -np.sin(3 * t) / 3.2 + r()]
+    if nombre == "mobius":
+        u = rng.random(n) * 2 * math.pi; v = (rng.random(n) * 2 - 1) * .35; R = .62
+        return np.c_[(R + v * np.cos(u / 2)) * np.cos(u), v * np.sin(u / 2) * 1.2, (R + v * np.cos(u / 2)) * np.sin(u)]
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -98,7 +123,7 @@ def capa_texto(arriba, abajo):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice"])
+    ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "diamante", "resorte", "nudo", "mobius"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")

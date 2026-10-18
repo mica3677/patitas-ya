@@ -39,6 +39,12 @@
     <option value="cylinder">Cilindro (puntos al azar)</option>
     <option value="cube">Cubo (aristas)</option>
     <option value="torus">Toro (dona)</option>
+        <option value="cone">Cono</option>
+    <option value="pyramid">Pirámide</option>
+    <option value="octahedron">Diamante (octaedro)</option>
+    <option value="spring">Resorte</option>
+    <option value="knot">Nudo (trébol)</option>
+    <option value="mobius">Cinta de Möbius</option>
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
@@ -78,6 +84,13 @@ let pts = [], t0 = performance.now(), angle = 0, last = t0, recording = false;
 let seed = 1;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
+function edgeShape(n, v, e){
+  const out = [];
+  for (let i = 0; i < n; i++){ const [a,b] = e[Math.floor(rnd()*e.length)], u = rnd();
+    out.push([0,1,2].map(k => v[a][k] + (v[b][k]-v[a][k])*u)); }
+  return out;
+}
+
 const shapes = {
   sphere(n){
     // meridianos y paralelos hechos de puntos, como en el video
@@ -112,6 +125,37 @@ const shapes = {
     const out = [];
     for (let i = 0; i < n; i++){ const u = rnd()*2*Math.PI, v = rnd()*2*Math.PI, R=.7, r=.28;
       out.push([(R+r*Math.cos(v))*Math.cos(u), r*Math.sin(v), (R+r*Math.cos(v))*Math.sin(u)]); }
+    return out;
+  },
+  cone(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const t = Math.sqrt(rnd()), a = rnd()*2*Math.PI;
+      out.push([Math.cos(a)*.75*t, 1 - 2*t, Math.sin(a)*.75*t]); }
+    return out;
+  },
+  pyramid(n){ return edgeShape(n, [[-.7,-.8,-.7],[.7,-.8,-.7],[.7,-.8,.7],[-.7,-.8,.7],[0,.95,0]],
+    [[0,1],[1,2],[2,3],[3,0],[0,4],[1,4],[2,4],[3,4]]); },
+  octahedron(n){
+    const v = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map(p => p.map(c => c*.95)), e = [];
+    for (let i = 0; i < 6; i++) for (let j = i+1; j < 6; j++) if (j !== (i^1)) e.push([i,j]);
+    return edgeShape(n, v, e);
+  },
+  spring(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const u = rnd(), a = u*6*2*Math.PI;
+      out.push([Math.cos(a)*.6, u*1.8 - .9, Math.sin(a)*.6]); }
+    return out;
+  },
+  knot(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const t = rnd()*2*Math.PI;
+      out.push([(Math.sin(t)+2*Math.sin(2*t))/3.2 + (rnd()-.5)*.05, (Math.cos(t)-2*Math.cos(2*t))/3.2 + (rnd()-.5)*.05, -Math.sin(3*t)/3.2 + (rnd()-.5)*.05]); }
+    return out;
+  },
+  mobius(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const u = rnd()*2*Math.PI, v = (rnd()*2-1)*.35, R = .62;
+      out.push([(R+v*Math.cos(u/2))*Math.cos(u), v*Math.sin(u/2)*1.2, (R+v*Math.cos(u/2))*Math.sin(u)]); }
     return out;
   },
   helix(n){
