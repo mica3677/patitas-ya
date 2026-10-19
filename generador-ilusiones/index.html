@@ -58,6 +58,14 @@
     <option value="heart">Corazón 3D</option>
     <option value="ripples">Ondas</option>
     <option value="fibSphere">Esfera uniforme</option>
+        <option value="saturn">Saturno</option>
+    <option value="atom">Átomo</option>
+    <option value="blackHole">Agujero negro</option>
+    <option value="pumpkin">Calabaza</option>
+    <option value="hourglass">Reloj de arena</option>
+    <option value="merkaba">Merkaba (estrella 3D)</option>
+    <option value="infinity">Infinito</option>
+    <option value="sunflower">Girasol</option>
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
@@ -232,6 +240,74 @@ const shapes = {
       out.push([Math.cos(i*g)*r, y, Math.sin(i*g)*r]); }
     return out;
   },
+  saturn(n){
+    const out = [];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .42){ const x = gauss(), y = gauss(), z = gauss(), l = Math.hypot(x,y,z) || 1; out.push([x/l*.5, y/l*.5, z/l*.5]); }
+      else { let r; do r = .72 + rnd()*.38; while (r > .92 && r < .96);   // hueco entre anillos
+        const a = rnd()*2*Math.PI, px = r*Math.cos(a), t = .4;
+        out.push([px*Math.cos(t), px*Math.sin(t) + gauss()*.004, r*Math.sin(a)]); }
+    }
+    return out;
+  },
+  atom(n){
+    const out = [];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .1){ out.push([gauss()*.07, gauss()*.07, gauss()*.07]); continue; }
+      const k = Math.floor(rnd()*3), t = rnd() < .18 ? k*2.1 + gauss()*.1 : rnd()*2*Math.PI,   // electrones: racimos
+        x = Math.cos(t), z = .42*Math.sin(t), phi = Math.PI/3, y0 = -z*Math.sin(phi), z0 = z*Math.cos(phi), psi = k*Math.PI/3;
+      out.push([x*Math.cos(psi) + z0*Math.sin(psi) + gauss()*.008, y0 + gauss()*.008, -x*Math.sin(psi) + z0*Math.cos(psi) + gauss()*.008]);
+    }
+    return out;
+  },
+  blackHole(n){
+    const out = [];
+    for (let i = 0; i < n; i++){
+      const a = rnd()*2*Math.PI;
+      if (rnd() < .7){ const r = .36 + .64*Math.pow(rnd(), .8); out.push([r*Math.cos(a), gauss()*.012*(1+r), r*Math.sin(a)]); }
+      else { const r = .4 + gauss()*.008; out.push([r*Math.cos(a), r*Math.sin(a), gauss()*.008]); }   // halo de luz curvada
+    }
+    return out;
+  },
+  pumpkin(n){
+    const out = [];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .06){ const t = rnd(), a = rnd()*2*Math.PI; out.push([.07*Math.cos(a) + .12*t*t, .72 + .3*t, .07*Math.sin(a)]); continue; }
+      const c = rnd()*2 - 1, s = Math.sqrt(1 - c*c), a = rnd()*2*Math.PI, rr = 1 - .13*(1 - Math.abs(Math.cos(4*a)));   // 8 gajos
+      out.push([s*Math.cos(a)*rr, c*.78, s*Math.sin(a)*rr]);
+    }
+    return out;
+  },
+  hourglass(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const u = rnd(), a = rnd()*2*Math.PI;
+      if (u < .5){ const y = rnd()*2 - 1, r = .12 + .6*y*y; out.push([r*Math.cos(a), y, r*Math.sin(a)]); }
+      else if (u < .62){ const y = rnd() < .5 ? 1 : -1, r = .72 + gauss()*.006; out.push([r*Math.cos(a), y, r*Math.sin(a)]); }
+      else if (u < .84){ const t = Math.sqrt(rnd()); out.push([.6*t*Math.cos(a), -.95 + .45*(1-t), .6*t*Math.sin(a)]); }
+      else if (u < .9){ out.push([gauss()*.008, -.5 + rnd()*.5, gauss()*.008]); }
+      else { const t = Math.sqrt(rnd()), y = .5 + .3*t; out.push([(.12 + .6*y*y)*.92*t*Math.cos(a), y, (.12 + .6*y*y)*.92*t*Math.sin(a)]); }
+    }
+    return out;
+  },
+  merkaba(n){
+    const k = .55, e3 = [1,1,1].map(c => c/Math.sqrt(3)), e1 = [1,-1,0].map(c => c/Math.sqrt(2)), e2 = [1,1,-2].map(c => c/Math.sqrt(6));
+    const T = [[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]], d = (p,q) => p[0]*q[0] + p[1]*q[1] + p[2]*q[2];
+    const v = [...T, ...T.map(p => p.map(c => -c))].map(p => [d(p,e1)*k, d(p,e3)*k, d(p,e2)*k]), e = [];   // punta hacia arriba
+    for (const g of [0,4]) for (let i = 0; i < 4; i++) for (let j = i+1; j < 4; j++) e.push([g+i, g+j]);
+    return edgeShape(n, v, e);
+  },
+  infinity(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const t = rnd()*2*Math.PI, d = 1 + Math.sin(t)**2;
+      out.push([Math.cos(t)/d + gauss()*.018, Math.sin(t)*Math.cos(t)/d*1.6 + gauss()*.018, .35*Math.sin(t) + gauss()*.018]); }
+    return out;
+  },
+  sunflower(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const r = Math.sqrt((i+.5)/n), a = i*2.39996323;
+      out.push([r*Math.cos(a), .4*r*r - .2, r*Math.sin(a)]); }
+    return out;
+  },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i%3, y = rnd()*2-1, a = y*3*Math.PI;
@@ -260,7 +336,9 @@ const PALETAS = {
   'Hielo':    {bg:'#020b16', tx:'#e6f7ff', a:'#e6f7ff', b:'#4cc9f0'},
   'Matrix':   {bg:'#000000', tx:'#b6ffb0', a:'#b6ffb0', b:'#00c853'},
   'Dorado':   {bg:'#0b0803', tx:'#f5deb3', a:'#fff1b8', b:'#d4a017'},
-  'Violeta':  {bg:'#0a0614', tx:'#f3e8ff', a:'#f3e8ff', b:'#9d4edd'}
+  'Violeta':  {bg:'#0a0614', tx:'#f3e8ff', a:'#f3e8ff', b:'#9d4edd'},
+  'Halloween':{bg:'#0a0500', tx:'#ffd9a0', a:'#ffb347', b:'#ff5e00'},
+  'Sangre':   {bg:'#0a0002', tx:'#ffd6d6', a:'#ff6b6b', b:'#8b0000'}
 };
 function applyPalette(p){
   $('cbg').value = p.bg; $('ctt').value = p.tx; $('ca').value = p.a; $('cb').value = p.b; $('grad').checked = p.a !== p.b;

@@ -30,6 +30,8 @@ PALETAS = {
     "matrix":   ("#000000", "#b6ffb0", "#b6ffb0", "#00c853"),
     "dorado":   ("#0b0803", "#f5deb3", "#fff1b8", "#d4a017"),
     "violeta":  ("#0a0614", "#f3e8ff", "#f3e8ff", "#9d4edd"),
+    "halloween": ("#0a0500", "#ffd9a0", "#ffb347", "#ff5e00"),
+    "sangre":   ("#0a0002", "#ffd6d6", "#ff6b6b", "#8b0000"),
 }
 
 
@@ -149,6 +151,53 @@ def formas(nombre, n, rng):
     if nombre == "esfera_fibonacci":
         i = np.arange(n); y = 1 - 2 * (i + .5) / n; r = np.sqrt(1 - y * y); g = math.pi * (3 - 5 ** .5)
         return np.c_[np.cos(i * g) * r, y, np.sin(i * g) * r]
+    if nombre == "saturno":
+        nb = int(n * .42); v = rng.normal(size=(nb, 3)); v = v / np.linalg.norm(v, axis=1, keepdims=True) * .5
+        m = n - nb; r = .72 + .36 * rng.random(m); r[(r > .92) & (r < .96)] += .04   # hueco entre anillos
+        a = rng.random(m) * 2 * math.pi; px = r * np.cos(a); t = .4
+        return np.r_[v, np.c_[px * math.cos(t), px * math.sin(t) + rng.normal(size=m) * .004, r * np.sin(a)]]
+    if nombre == "atomo":
+        nn = int(n * .1); m = n - nn; k = rng.integers(3, size=m)
+        t = np.where(rng.random(m) < .18, k * 2.1 + rng.normal(size=m) * .1, rng.random(m) * 2 * math.pi)   # electrones: racimos
+        x = np.cos(t); z = .42 * np.sin(t); phi = math.pi / 3; y0 = -z * math.sin(phi); z0 = z * math.cos(phi); psi = k * math.pi / 3
+        j = lambda: rng.normal(size=m) * .008
+        orb = np.c_[x * np.cos(psi) + z0 * np.sin(psi) + j(), y0 + j(), -x * np.sin(psi) + z0 * np.cos(psi) + j()]
+        return np.r_[rng.normal(size=(nn, 3)) * .07, orb]
+    if nombre == "agujero_negro":
+        nd = int(n * .7); r = .36 + .64 * rng.random(nd) ** .8; a = rng.random(nd) * 2 * math.pi
+        disco = np.c_[r * np.cos(a), rng.normal(size=nd) * .012 * (1 + r), r * np.sin(a)]
+        nh = n - nd; ah = rng.random(nh) * 2 * math.pi; rh = .4 + rng.normal(size=nh) * .008   # halo de luz curvada
+        return np.r_[disco, np.c_[rh * np.cos(ah), rh * np.sin(ah), rng.normal(size=nh) * .008]]
+    if nombre == "calabaza":
+        ns = int(n * .06); nb = n - ns
+        c = rng.random(nb) * 2 - 1; s = np.sqrt(1 - c * c); a = rng.random(nb) * 2 * math.pi; rr = 1 - .13 * (1 - np.abs(np.cos(4 * a)))
+        cuerpo = np.c_[s * np.cos(a) * rr, c * .78, s * np.sin(a) * rr]
+        t = rng.random(ns); a2 = rng.random(ns) * 2 * math.pi
+        return np.r_[cuerpo, np.c_[.07 * np.cos(a2) + .12 * t * t, .72 + .3 * t, .07 * np.sin(a2)]]
+    if nombre == "reloj_arena":
+        u = rng.random(n); a = rng.random(n) * 2 * math.pi; t = np.sqrt(rng.random(n)); yy = rng.random(n) * 2 - 1
+        vidrio = np.c_[(.12 + .6 * yy ** 2) * np.cos(a), yy, (.12 + .6 * yy ** 2) * np.sin(a)]
+        ya = np.where(rng.random(n) < .5, 1., -1.); rb = .72 + rng.normal(size=n) * .006
+        borde = np.c_[rb * np.cos(a), ya, rb * np.sin(a)]
+        pila = np.c_[.6 * t * np.cos(a), -.95 + .45 * (1 - t), .6 * t * np.sin(a)]
+        hilo = np.c_[rng.normal(size=n) * .008, -.5 + rng.random(n) * .5, rng.normal(size=n) * .008]
+        ys = .5 + .3 * t; rs = (.12 + .6 * ys ** 2) * .92 * t
+        arriba = np.c_[rs * np.cos(a), ys, rs * np.sin(a)]
+        piezas = [vidrio, borde, pila, hilo, arriba]; cortes = [.5, .62, .84, .9]
+        idx = np.digitize(u, cortes)
+        return np.array([piezas[idx[i]][i] for i in range(n)])
+    if nombre == "merkaba":
+        T = np.array([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=float)
+        e3 = np.array([1, 1, 1]) / 3 ** .5; e1 = np.array([1, -1, 0]) / 2 ** .5; e2 = np.array([1, 1, -2]) / 6 ** .5
+        v = np.r_[T, -T] @ np.c_[e1, e3, e2] * .55    # punta hacia arriba
+        e = [(g + i, g + j) for g in (0, 4) for i in range(4) for j in range(i + 1, 4)]
+        return _aristas(v, e, n, rng)
+    if nombre == "infinito":
+        t = rng.random(n) * 2 * math.pi; d = 1 + np.sin(t) ** 2; j = lambda: rng.normal(size=n) * .018
+        return np.c_[np.cos(t) / d + j(), np.sin(t) * np.cos(t) / d * 1.6 + j(), .35 * np.sin(t) + j()]
+    if nombre == "girasol":
+        i = np.arange(n); r = np.sqrt((i + .5) / n); a = i * 2.39996323
+        return np.c_[r * np.cos(a), .4 * r * r - .2, r * np.sin(a)]
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -176,7 +225,8 @@ def capa_texto(arriba, abajo):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "diamante", "resorte", "nudo", "mobius",
-                                                  "cono_invertido", "galaxia", "nudo_toroidal", "icosaedro", "tornado", "corazon", "ondas", "esfera_fibonacci"])
+                                                  "cono_invertido", "galaxia", "nudo_toroidal", "icosaedro", "tornado", "corazon", "ondas", "esfera_fibonacci",
+                                                  "saturno", "atomo", "agujero_negro", "calabaza", "reloj_arena", "merkaba", "infinito", "girasol"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
