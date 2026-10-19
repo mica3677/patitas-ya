@@ -57,6 +57,27 @@ def _aristas(v, e, n, rng):
     return a + (b - a) * u
 
 
+def _tri(u, v, A, B, C):
+    d = lambda p, q, r: (p[0] - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (p[1] - r[1])
+    P = (u, v); d1, d2, d3 = d(P, A, B), d(P, B, C), d(P, C, A)
+    return ~(((d1 < 0) | (d2 < 0) | (d3 < 0)) & ((d1 > 0) | (d2 > 0) | (d3 > 0)))
+
+
+def _cara(u, v):
+    """Cara tallada de la calabaza en (u = angulo desde el frente, v = altura -1..1): True = agujero."""
+    ojos = (_tri(u, v, (-.62, .12), (-.22, .12), (-.42, .44)) | _tri(u, v, (.22, .12), (.62, .12), (.42, .44))
+            | _tri(u, v, (-.1, -.04), (.1, -.04), (0, .12)))
+    yc = -.38 + .35 * (u / .8) ** 2; k = np.floor((u + .8) / .16)
+    diente = np.where(k % 2 == 1, v > yc, v < yc)
+    boca = (np.abs(u) < .8) & (np.abs(v - yc) < .12) & ~diente
+    return ojos | boca
+
+
+def _cuerpo_calabaza(c, a):
+    s = np.sqrt(1 - c * c); rr = 1 - .13 * (1 - np.abs(np.cos(4 * a)))     # 8 gajos
+    return np.c_[s * np.cos(a) * rr, c * .78, s * np.sin(a) * rr]
+
+
 def formas(nombre, n, rng):
     if nombre == "esfera":
         M, P = 12, 9
@@ -121,10 +142,23 @@ def formas(nombre, n, rng):
         q = formas("cono", n, rng); q[:, 1] *= -1
         return q
     if nombre == "galaxia":
-        nb = int(n * .14); r = rng.random(n - nb) ** .65
-        ang = rng.integers(3, size=n - nb) * 2 * math.pi / 3 + r * 3.4 + rng.normal(size=n - nb) * .16 * (1.1 - r)
-        disco = np.c_[np.cos(ang) * r, rng.normal(size=n - nb) * .025 * (1.2 - r), np.sin(ang) * r]
-        return np.r_[disco, rng.normal(size=(nb, 3)) * [.1, .07, .1]]
+        b = 2.4; th = lambda r: b * np.log(r / .08) + .5; P = lambda m: rng.normal(size=m)
+        cr = .15 + .8 * np.sqrt(rng.random(40)); ca = th(cr) + rng.integers(2, size=40) * math.pi + P(40) * .08
+        q = rng.random(n); cnt = lambda lo, hi: int(((q >= lo) & (q < hi)).sum())
+        m = cnt(0, .15); bulbo = np.c_[P(m) * .13, P(m) * .07, P(m) * .13]
+        m = cnt(.15, .20); nucleo = P(m * 3).reshape(m, 3) * [.04, .03, .04]
+        m = cnt(.20, .26); al = P(m) * .2; ac = P(m) * .04
+        barra = np.c_[al * math.cos(.5) - ac * math.sin(.5), P(m) * .025, al * math.sin(.5) + ac * math.cos(.5)]
+        m = cnt(.26, .78); r = .08 + .92 * rng.random(m) ** .85
+        arm = np.where(rng.random(m) < .72, rng.integers(2, size=m) * math.pi, math.pi / 2 + rng.integers(2, size=m) * math.pi)
+        a = th(r) + arm + P(m) * (.1 + .1 * r)       # 2 brazos principales y 2 menores
+        brazos = np.c_[r * np.cos(a), P(m) * .02 * (1.2 - r) + .05 * r * r * np.sin(a), r * np.sin(a)]
+        m = cnt(.78, .88); j = rng.integers(40, size=m)                      # cumulos de estrellas jovenes
+        cumulos = np.c_[cr[j] * np.cos(ca[j]) + P(m) * .02, P(m) * .012, cr[j] * np.sin(ca[j]) + P(m) * .02]
+        m = cnt(.88, .96); r = rng.random(m) ** .7; a = rng.random(m) * 2 * math.pi        # disco entre brazos
+        disco = np.c_[r * np.cos(a), P(m) * .03 * (1.2 - r), r * np.sin(a)]
+        m = cnt(.96, 1.01); halo = P(m * 3).reshape(m, 3) * [.5, .18, .5]
+        return np.r_[bulbo, nucleo, barra, brazos, cumulos, disco, halo]
     if nombre == "nudo_toroidal":
         t = rng.random(n) * 2 * math.pi; c = 2 + np.cos(3 * t); j = lambda: rng.normal(size=n) * .03
         return np.c_[c * np.cos(2 * t) / 3.1 + j(), np.sin(3 * t) * 1.5 / 3.1 + j(), c * np.sin(2 * t) / 3.1 + j()]
@@ -164,16 +198,34 @@ def formas(nombre, n, rng):
         orb = np.c_[x * np.cos(psi) + z0 * np.sin(psi) + j(), y0 + j(), -x * np.sin(psi) + z0 * np.cos(psi) + j()]
         return np.r_[rng.normal(size=(nn, 3)) * .07, orb]
     if nombre == "agujero_negro":
-        nd = int(n * .7); r = .36 + .64 * rng.random(nd) ** .8; a = rng.random(nd) * 2 * math.pi
-        disco = np.c_[r * np.cos(a), rng.normal(size=nd) * .012 * (1 + r), r * np.sin(a)]
-        nh = n - nd; ah = rng.random(nh) * 2 * math.pi; rh = .4 + rng.normal(size=nh) * .008   # halo de luz curvada
-        return np.r_[disco, np.c_[rh * np.cos(ah), rh * np.sin(ah), rng.normal(size=nh) * .008]]
+        q = rng.random(n); P = lambda m: rng.normal(size=m)
+        nd = int((q < .58).sum()); r = .34 + .66 * rng.random(nd * 4) ** 1.5; aa = rng.random(nd * 4) * 2 * math.pi
+        w = (.55 + .45 * np.cos(2 * (aa - 3.2 * np.log(r / .34)))) * (.78 + .22 * np.cos(r * 75))
+        k = rng.random(nd * 4) < w; r, aa = r[k][:nd], aa[k][:nd]                 # disco con brazos en espiral y anillos finos
+        disco = np.c_[r * np.cos(aa), P(len(r)) * .01 * (1 + 2.5 * r ** 2), r * np.sin(aa)]
+        m = int(((q >= .58) & (q < .70)).sum()); a = rng.random(m) * 2 * math.pi; ri = .33 + np.abs(P(m)) * .025
+        interior = np.c_[ri * np.cos(a), P(m) * .006, ri * np.sin(a)]                # borde interior ardiente
+        m = int(((q >= .70) & (q < .84)).sum()); sf = P(m * 3).reshape(m, 3); sf = sf / np.linalg.norm(sf, axis=1, keepdims=True) * .44
+        m = int(((q >= .84) & (q < .94)).sum()); sg = np.where(rng.random(m) < .5, 1, -1); h = .3 + rng.random(m) * .85
+        wj = .008 + .03 * h ** 2; chorros = np.c_[P(m) * wj, sg * h, P(m) * wj]         # chorros relativistas
+        m = int((q >= .94).sum()); rg = .7 + rng.random(m) * .4; ag = rng.random(m) * 2 * math.pi
+        gas = np.c_[rg * np.cos(ag), P(m) * .06 * (rg - .5), rg * np.sin(ag)]
+        return np.r_[disco, interior, sf, chorros, gas]
     if nombre == "calabaza":
-        ns = int(n * .06); nb = n - ns
-        c = rng.random(nb) * 2 - 1; s = np.sqrt(1 - c * c); a = rng.random(nb) * 2 * math.pi; rr = 1 - .13 * (1 - np.abs(np.cos(4 * a)))
-        cuerpo = np.c_[s * np.cos(a) * rr, c * .78, s * np.sin(a) * rr]
+        ns, ng, ne, nf = int(n * .05), int(n * .04), int(n * .06), int(n * .30); nb = n - ns - ng - ne - nf
         t = rng.random(ns); a2 = rng.random(ns) * 2 * math.pi
-        return np.r_[cuerpo, np.c_[.07 * np.cos(a2) + .12 * t * t, .72 + .3 * t, .07 * np.sin(a2)]]
+        tallo = np.c_[.07 * np.cos(a2) + .12 * t * t, .72 + .3 * t, .07 * np.sin(a2)]
+        vela = np.c_[rng.normal(size=ng) * .18, -.05 + rng.normal(size=ng) * .15, rng.normal(size=ng) * .18]
+        u = (rng.random(ne * 30) * 2 - 1) * .85; v = (rng.random(ne * 30) * 2 - 1) * .62; D = .04     # borde marcado de la cara
+        borde = ~_cara(u, v) & (_cara(u + D, v) | _cara(u - D, v) | _cara(u, v + D) | _cara(u, v - D))
+        borde_pts = _cuerpo_calabaza(v[borde][:ne], np.pi / 2 + u[borde][:ne])
+        uf = (rng.random(nf * 20) * 2 - 1) * .85; vf = (rng.random(nf * 20) * 2 - 1) * .62          # ojos, nariz y boca encendidos por la vela
+        kf = _cara(uf, vf); relleno = _cuerpo_calabaza(vf[kf][:nf], np.pi / 2 + uf[kf][:nf]) * .97
+        c = rng.random(nb * 2) * 2 - 1; a = rng.random(nb * 2) * 2 * math.pi
+        uu = np.arctan2(np.sin(a - math.pi / 2), np.cos(a - math.pi / 2))
+        ok = ~((np.abs(uu) < .85) & (np.abs(c) < .62) & _cara(uu, c))
+        cuerpo = _cuerpo_calabaza(c[ok][:nb], a[ok][:nb])
+        return np.r_[cuerpo, borde_pts, relleno, vela, tallo]
     if nombre == "reloj_arena":
         u = rng.random(n); a = rng.random(n) * 2 * math.pi; t = np.sqrt(rng.random(n)); yy = rng.random(n) * 2 - 1
         vidrio = np.c_[(.12 + .6 * yy ** 2) * np.cos(a), yy, (.12 + .6 * yy ** 2) * np.sin(a)]
@@ -247,6 +299,7 @@ def main():
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
     ap.add_argument("--salida", default=None)
     ap.add_argument("--preview", action="store_true", help="solo guarda un PNG de control")
+    ap.add_argument("--preview-t", type=float, default=1 / 7, help="momento del preview, 0 a 1")
     a = ap.parse_args()
 
     rng = np.random.default_rng(a.semilla)
@@ -258,7 +311,10 @@ def main():
     c_b = rgb(a.color2) if a.color2 else (rgb(pb) if not a.color else c_a)
     base = c_bg + (c_tx - c_bg) * texto[..., None]          # fondo + texto, listo para pegar los puntos
     # el color va pegado al objeto: por altura, o del centro al borde si la figura es plana
-    eje = pts[:, 1] if np.ptp(pts[:, 1]) >= .5 else 1 - np.hypot(pts[:, 0], pts[:, 2])
+    if a.forma in ("agujero_negro", "galaxia"):
+        eje = 1 - np.minimum(1, np.linalg.norm(pts, axis=1))      # del centro (color de arriba) al borde (color de abajo)
+    else:
+        eje = pts[:, 1] if np.ptp(pts[:, 1]) >= .5 else 1 - np.hypot(pts[:, 0], pts[:, 2])
     ty = (eje - eje.min()) / max(1e-9, np.ptp(eje))   # 0 = color de abajo, 1 = color de arriba
     cols = c_b + (c_a - c_b) * ty[:, None]
     R = W * a.figura / 100; cy = H * .47
@@ -297,7 +353,7 @@ def main():
         return (out + .5).astype(np.uint8)
 
     if a.preview:
-        Image.fromarray(fotograma(total // 7)).save("preview.png"); print("preview.png"); return
+        Image.fromarray(fotograma(int(total * a.preview_t))).save("preview.png"); print("preview.png"); return
 
     salida = a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",

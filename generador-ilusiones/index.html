@@ -125,6 +125,20 @@ function edgeShape(n, v, e){
   return out;
 }
 
+function tri(u, v, A, B, C){
+  const d = (p, q, r) => (p[0]-r[0])*(q[1]-r[1]) - (q[0]-r[0])*(p[1]-r[1]), P = [u, v],
+    d1 = d(P,A,B), d2 = d(P,B,C), d3 = d(P,C,A);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+}
+// cara tallada en coordenadas (u = ángulo desde el frente, v = altura -1..1 sobre la calabaza): true = agujero
+function carvedFace(u, v){
+  if (tri(u,v,[-.62,.12],[-.22,.12],[-.42,.44]) || tri(u,v,[.22,.12],[.62,.12],[.42,.44]) || tri(u,v,[-.1,-.04],[.1,-.04],[0,.12])) return true;
+  if (Math.abs(u) < .8){ const yc = -.38 + .35*(u/.8)**2, k = Math.floor((u+.8)/.16);
+    if (Math.abs(v - yc) < .12) return !(k % 2 ? v > yc : v < yc);      // dientes alternados arriba y abajo
+  }
+  return false;
+}
+
 const shapes = {
   sphere(n){
     // meridianos y paralelos hechos de puntos, como en el video
@@ -194,11 +208,20 @@ const shapes = {
   },
   coneInv(n){ return shapes.cone(n).map(([x,y,z]) => [x,-y,z]); },
   galaxy(n){
-    const out = [], arms = 3;
-    for (let i = 0; i < n; i++){
-      if (rnd() < .14){ out.push([gauss()*.1, gauss()*.07, gauss()*.1]); continue; }
-      const r = Math.pow(rnd(), .65), a = Math.floor(rnd()*arms)*2*Math.PI/arms + r*3.4 + gauss()*.16*(1.1-r);
-      out.push([Math.cos(a)*r, gauss()*.025*(1.2-r), Math.sin(a)*r]);
+    const out = [], b = 2.4, clumps = [], th = r => b*Math.log(r/.08) + .5;     // brazos que nacen en los extremos de la barra
+    for (let k = 0; k < 40; k++){ const r = .15 + .8*Math.sqrt(rnd()); clumps.push([r, th(r) + Math.floor(rnd()*2)*Math.PI + gauss()*.08]); }
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .15) out.push([gauss()*.13, gauss()*.07, gauss()*.13]);                       // bulbo
+      else if (q < .20) out.push([gauss()*.04, gauss()*.03, gauss()*.04]);                   // núcleo brillante
+      else if (q < .26){ const al = gauss()*.2, ac = gauss()*.04;                           // barra central
+        out.push([al*Math.cos(.5) - ac*Math.sin(.5), gauss()*.025, al*Math.sin(.5) + ac*Math.cos(.5)]); }
+      else if (q < .78){ const r = .08 + .92*Math.pow(rnd(), .85), arm = rnd() < .72 ? Math.floor(rnd()*2)*Math.PI : Math.PI/2 + Math.floor(rnd()*2)*Math.PI,   // 2 brazos principales y 2 menores
+          a = th(r) + arm + gauss()*(.1 + .1*r);
+        out.push([r*Math.cos(a), gauss()*.02*(1.2 - r) + .05*r*r*Math.sin(a), r*Math.sin(a)]); }
+      else if (q < .88){ const c = clumps[Math.floor(rnd()*clumps.length)];                  // cúmulos de estrellas jóvenes
+        out.push([c[0]*Math.cos(c[1]) + gauss()*.02, gauss()*.012, c[0]*Math.sin(c[1]) + gauss()*.02]); }
+      else if (q < .96){ const r = Math.pow(rnd(), .7), a = rnd()*2*Math.PI; out.push([r*Math.cos(a), gauss()*.03*(1.2 - r), r*Math.sin(a)]); }   // disco entre brazos
+      else out.push([gauss()*.5, gauss()*.18, gauss()*.5]);                                 // halo
     }
     return out;
   },
@@ -265,19 +288,35 @@ const shapes = {
   },
   blackHole(n){
     const out = [];
-    for (let i = 0; i < n; i++){
-      const a = rnd()*2*Math.PI;
-      if (rnd() < .7){ const r = .36 + .64*Math.pow(rnd(), .8); out.push([r*Math.cos(a), gauss()*.012*(1+r), r*Math.sin(a)]); }
-      else { const r = .4 + gauss()*.008; out.push([r*Math.cos(a), r*Math.sin(a), gauss()*.008]); }   // halo de luz curvada
+    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI;
+      if (q < .58){                                  // disco con brazos en espiral y anillos finos
+        let r, aa, w, t = 0;
+        do { r = .34 + .66*Math.pow(rnd(), 1.5); aa = rnd()*2*Math.PI;
+          w = (.55 + .45*Math.cos(2*(aa - 3.2*Math.log(r/.34)))) * (.78 + .22*Math.cos(r*75)); } while (rnd() > w && t++ < 60);
+        out.push([r*Math.cos(aa), gauss()*.01*(1 + 2.5*r*r), r*Math.sin(aa)]);
+      } else if (q < .70){ const r = .33 + Math.abs(gauss())*.025; out.push([r*Math.cos(a), gauss()*.006, r*Math.sin(a)]);   // borde interior ardiente
+      } else if (q < .84){ const x = gauss(), y = gauss(), z = gauss(), l = Math.hypot(x,y,z) || 1;                           // esfera de fotones: se ve como anillo desde cualquier lado
+        out.push([x/l*.44, y/l*.44, z/l*.44]);
+      } else if (q < .94){ const s = rnd() < .5 ? 1 : -1, h = .3 + rnd()*.85, w = .008 + .03*h*h;                            // chorros relativistas
+        out.push([gauss()*w, s*h, gauss()*w]);
+      } else { const r = .7 + rnd()*.4; out.push([r*Math.cos(a), gauss()*.06*(r - .5), r*Math.sin(a)]); }                      // gas disperso
     }
     return out;
   },
   pumpkin(n){
-    const out = [];
-    for (let i = 0; i < n; i++){
-      if (rnd() < .06){ const t = rnd(), a = rnd()*2*Math.PI; out.push([.07*Math.cos(a) + .12*t*t, .72 + .3*t, .07*Math.sin(a)]); continue; }
-      const c = rnd()*2 - 1, s = Math.sqrt(1 - c*c), a = rnd()*2*Math.PI, rr = 1 - .13*(1 - Math.abs(Math.cos(4*a)));   // 8 gajos
-      out.push([s*Math.cos(a)*rr, c*.78, s*Math.sin(a)*rr]);
+    const out = [], D = .04, body = (c, a) => { const s = Math.sqrt(1-c*c), rr = 1 - .13*(1 - Math.abs(Math.cos(4*a)));   // 8 gajos
+      return [s*Math.cos(a)*rr, c*.78, s*Math.sin(a)*rr]; };
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .05){ const t = rnd(), a = rnd()*2*Math.PI; out.push([.07*Math.cos(a) + .12*t*t, .72 + .3*t, .07*Math.sin(a)]); }   // tallo
+      else if (q < .09){ out.push([gauss()*.18, -.05 + gauss()*.15, gauss()*.18]); }                                              // luz de la vela
+      else if (q < .15){ for (let g = 0; g < 4000; g++){                                                                       // borde marcado de la cara
+          const u = (rnd()*2-1)*.85, v = (rnd()*2-1)*.62;
+          if (!carvedFace(u,v) && (carvedFace(u+D,v) || carvedFace(u-D,v) || carvedFace(u,v+D) || carvedFace(u,v-D))){ out.push(body(v, Math.PI/2 + u)); break; } } }
+      else if (q < .45){ for (let g = 0; g < 4000; g++){                                                                       // ojos, nariz y boca encendidos por la vela
+          const u = (rnd()*2-1)*.85, v = (rnd()*2-1)*.62;
+          if (carvedFace(u,v)){ out.push(body(v, Math.PI/2 + u).map(c => c*.97)); break; } } }
+      else { for (let g = 0; g < 100; g++){ const c = rnd()*2-1, a = rnd()*2*Math.PI, u = Math.atan2(Math.sin(a - Math.PI/2), Math.cos(a - Math.PI/2));
+          if (Math.abs(u) < .85 && Math.abs(c) < .62 && carvedFace(u,c)) continue; out.push(body(c, a)); break; } }
     }
     return out;
   },
@@ -326,7 +365,8 @@ function build(){
   seed = seedBase; const raw = shapes[$('shape').value](+$('n').value);
   // el color va pegado al objeto: por altura, o del centro al borde si la figura es plana
   let lo = Infinity, hi = -Infinity; for (const p of raw){ lo = Math.min(lo,p[1]); hi = Math.max(hi,p[1]); }
-  const flat = hi - lo < .5, key = p => flat ? 1 - Math.hypot(p[0],p[2]) : p[1];
+  const radial = ['blackHole','galaxy'].includes($('shape').value), flat = radial || hi - lo < .5,
+    key = p => radial ? 1 - Math.min(1, Math.hypot(p[0],p[1],p[2])) : flat ? 1 - Math.hypot(p[0],p[2]) : p[1];
   if (flat){ lo = Infinity; hi = -Infinity; for (const p of raw){ lo = Math.min(lo,key(p)); hi = Math.max(hi,key(p)); } }
   const bk = p => Math.min(NB-1, Math.floor((key(p)-lo)/((hi-lo)||1)*NB));
   raw.sort((p,q) => bk(p)-bk(q)); pts = raw; bks = raw.map(bk);   // agrupados por color para pintar rápido
