@@ -27,8 +27,8 @@
   #out{margin-top:12px}
   #out video{width:100%;max-height:60vh;border-radius:6px;background:#000}
   #out p{margin:6px 0 0;color:var(--mut);font-size:12px}
-  .row{display:flex;gap:8px;margin-top:16px}
-  button{flex:1;background:var(--ac);color:#000;border:0;border-radius:6px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  button{flex:1 1 120px;background:var(--ac);color:#000;border:0;border-radius:6px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
   button.sec{background:#333;color:var(--fg)}
   button:disabled{opacity:.5;cursor:default}
   .chk{display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--fg)}
@@ -67,6 +67,14 @@
     <option value="merkaba">Merkaba (estrella 3D)</option>
     <option value="infinity">Infinito</option>
     <option value="sunflower">Girasol</option>
+        <option value="eye">Ojo</option>
+    <option value="lotus">Flor de loto</option>
+    <option value="moon">Luna con cráteres</option>
+    <option value="tesseract">Hipercubo (teseracto)</option>
+    <option value="gyroscope">Giroscopio</option>
+    <option value="coil">Bobina toroidal</option>
+    <option value="nautilus">Nautilus</option>
+    <option value="sierpinski">Fractal Sierpinski</option>
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
@@ -81,6 +89,10 @@
   <input type="range" id="d" min="0" max="100" step="5" value="0">
   <label>Tamaño de la figura <span id="vZ"></span></label>
   <input type="range" id="z" min="20" max="60" step="1" value="42">
+  <label>Brillo (glow) <span id="vB"></span></label>
+  <input type="range" id="b" min="0" max="100" step="5" value="0">
+  <label>Estrellas de fondo <span id="vE"></span></label>
+  <input type="range" id="e" min="0" max="600" step="20" value="0">
   <label>Paleta</label>
   <div id="presets" class="presets"></div>
   <div class="colors">
@@ -100,6 +112,7 @@
   <input type="range" id="r" min="5" max="30" step="1" value="15">
   <div class="chk"><input type="checkbox" id="rev"><label for="rev" style="margin:0;color:inherit;text-transform:none;font-size:14px">Girar al revés</label></div>
   <div class="row">
+    <button id="rnd" class="sec">Sorpréndeme</button>
     <button id="reseed" class="sec">Nueva versión</button>
     <button id="rec">Copiar pedido</button>
   </div>
@@ -350,6 +363,86 @@ const shapes = {
       out.push([r*Math.cos(a), .4*r*r - .2, r*Math.sin(a)]); }
     return out;
   },
+  eye(n){
+    const out = [], R = .95, P = (al, ph) => [R*Math.sin(al)*Math.cos(ph), R*Math.sin(al)*Math.sin(ph), R*Math.cos(al)];   // +z mira al frente
+    for (let i = 0; i < n; i++){ const q = rnd(), ph = rnd()*2*Math.PI;
+      if (q < .36){ let al; do al = Math.acos(1 - 2*rnd()); while (al < .5); out.push(P(al, ph)); }                           // esclerótica
+      else if (q < .46) out.push(P(.45 + gauss()*.004, ph));                                                                // borde del iris
+      else if (q < .84) out.push(P(.17 + rnd()*.27, Math.floor(rnd()*40)*2*Math.PI/40 + gauss()*.012));                      // fibras del iris
+      else if (q < .92) out.push(P(.165 + gauss()*.004, ph));                                                               // borde de la pupila
+      else { const t = rnd()*2*Math.PI, a0 = .5 + rnd()*1.6; out.push(P(a0 + .15*Math.sin(t*3), ph*0 + t)); }               // venitas
+    }
+    return out;
+  },
+  lotus(n){
+    // 3 coronas de pétalos: las de afuera abiertas y caídas, las del medio a 45°, las de adentro paradas y curvadas hacia el centro
+    const out = [], LY = [{K:13, al:14, L:1,  b:.10, bend:.18, curl:0},
+                          {K:8,  al:42, L:.9, b:.08, bend:.05, curl:0},
+                          {K:5,  al:78, L:.65, b:.05, bend:0,  curl:.35}];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .05){ out.push([gauss()*.05, -.1 + rnd()*.3, gauss()*.05]); continue; }                       // estambres
+      const q = rnd(), l = q < .45 ? 0 : q < .8 ? 1 : 2, P = LY[l], k = Math.floor(rnd()*P.K), t = Math.pow(rnd(), .9),
+        sw = rnd()*2 - 1, s = t*P.L, hw = .24*P.L*Math.pow(Math.sin(Math.PI*Math.pow(t, .75)), .9) , al = P.al*Math.PI/180,
+        rad = P.b + s*Math.cos(al) - P.curl*s*s, h = s*Math.sin(al) - P.bend*s*s + .9*(sw*hw)**2, across = sw*hw,
+        az = k*2*Math.PI/P.K + l*.35, c = Math.cos(az), sn = Math.sin(az);
+      out.push([c*rad - sn*across, -.35 + h, sn*rad + c*across]);
+    }
+    return out;
+  },
+  moon(n){
+    const out = [], norm = v => { const l = Math.hypot(...v) || 1; return v.map(c => c/l); }, craters = [];
+    for (let k = 0; k < 18; k++) craters.push([norm([gauss(), gauss(), gauss()]), .07 + rnd()*.2]);
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .4){ const v = norm([gauss(), gauss(), gauss()]); out.push(v.map(c => c*.95)); continue; }                     // superficie
+      const [c, rho] = craters[Math.floor(rnd()*craters.length)], h = Math.abs(c[1]) < .9 ? [0,1,0] : [1,0,0],
+        e1 = norm([c[1]*h[2]-c[2]*h[1], c[2]*h[0]-c[0]*h[2], c[0]*h[1]-c[1]*h[0]]),
+        e2 = [c[1]*e1[2]-c[2]*e1[1], c[2]*e1[0]-c[0]*e1[2], c[0]*e1[1]-c[1]*e1[0]],
+        rr = q < .85 ? rho : rho*Math.sqrt(rnd()), t = rnd()*2*Math.PI;                                                    // borde y piso del cráter
+      out.push([0,1,2].map(m => .95*(Math.cos(rr)*c[m] + Math.sin(rr)*(Math.cos(t)*e1[m] + Math.sin(t)*e2[m]))));
+    }
+    return out;
+  },
+  tesseract(n){
+    const V = [];
+    for (let m = 0; m < 16; m++) V.push([m&1, (m>>1)&1, (m>>2)&1, (m>>3)&1].map(b => b ? 1 : -1));
+    const c1 = 1, s1 = 0, c2 = 1, s2 = 0, pr = V.map(([x,y,z,w]) => {
+      const x1 = x*c1 - w*s1, w1 = x*s1 + w*c1, z1 = z*c2 - w1*s2, w2 = z*s2 + w1*c2, f = 1/(3.2 - w2); return [x1*f, y*f, z1*f]; });
+    let mx = 0; for (const p of pr) for (const c of p) mx = Math.max(mx, Math.abs(c));
+    const e = []; for (let i = 0; i < 16; i++) for (let b = 0; b < 4; b++) if (!((i>>b)&1)) e.push([i, i|(1<<b)]);
+    return edgeShape(n, pr.map(p => p.map(c => c/mx*.7)), e);
+  },
+  gyroscope(n){
+    const out = [], rings = [[1,0,0,1],[0,1,0,.82],[0,0,1,.64]];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .05){ out.push([gauss()*.1, gauss()*.1, gauss()*.1]); continue; }
+      const t = rnd()*2*Math.PI, [nx,ny,nz,R] = rings[Math.floor(rnd()*3)], c = Math.cos(t)*R, s = Math.sin(t)*R,
+        p = nx ? [0,c,s] : ny ? [c,0,s] : [c,s,0];
+      out.push(p.map(v => v + gauss()*.008));
+    }
+    return out;
+  },
+  coil(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const u = rnd()*2*Math.PI, v = 14*u + (rnd() < .5 ? 0 : Math.PI), R = .7, r = .28;
+      out.push([(R + r*Math.cos(v))*Math.cos(u) + gauss()*.006, r*Math.sin(v) + gauss()*.006, (R + r*Math.cos(v))*Math.sin(u) + gauss()*.006]); }
+    return out;
+  },
+  nautilus(n){
+    const out = [], TM = 5*Math.PI, Rf = t => .12*Math.exp(.14*t), K = .28, A = Math.exp(K*TM) - 1;
+    for (let i = 0; i < n; i++){
+      const sep = rnd() < .18, t = sep ? Math.floor(rnd()*28)*.56 : Math.log(1 + rnd()*A)/K, R = Rf(t), rho = .3*R,
+        psi = rnd()*2*Math.PI, d = sep ? Math.sqrt(rnd()) : 1, rd = rho*d,
+        n1 = [Math.cos(t), Math.sin(t)];
+      out.push([(R*n1[0] + rd*Math.cos(psi)*n1[0])/1.5 + .1, (R*n1[1] + rd*Math.cos(psi)*n1[1])/1.5, rd*Math.sin(psi)/1.5]);
+    }
+    return out;
+  },
+  sierpinski(n){
+    const V = [[0,1.04,0], ...[90,210,330].map(a => [.98*Math.cos(a*Math.PI/180), -.35, .98*Math.sin(a*Math.PI/180)])].map(p => p.map(c => c*.88)),
+      out = []; let p = [0,0,0];
+    for (let i = 0; i < n + 30; i++){ const v = V[Math.floor(rnd()*4)]; p = p.map((c,k) => (c + v[k])/2); if (i >= 30) out.push([...p]); }
+    return out;
+  },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i%3, y = rnd()*2-1, a = y*3*Math.PI;
@@ -361,6 +454,19 @@ const shapes = {
   }
 };
 
+let GX = new Float32Array(0), GY = GX, GR = GX, GA = GX, stars = [], starKey = '', spriteKey = '', sprites = [];
+function ensureStars(){
+  const n = +$('e').value, key = n + ':' + seedBase; if (key === starKey) return; starKey = key;
+  let s = seedBase*7919 + 13; const r = () => (s = (s*16807) % 2147483647) / 2147483647;
+  stars = Array.from({length: n}, () => [r()*W, r()*H, .15 + .6*r()*r(), r() < .15 ? 3 : 2]);
+}
+function getSprites(cols){
+  const key = cols.join('|'); if (key === spriteKey) return sprites; spriteKey = key;
+  sprites = cols.map(c => { const k = document.createElement('canvas'); k.width = k.height = 64; const g = k.getContext('2d'),
+      gr = g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0, c.replace('rgb','rgba').replace(')',',.3)')); gr.addColorStop(1, c.replace('rgb','rgba').replace(')',',0)'));
+    g.fillStyle = gr; g.fillRect(0,0,64,64); return k; });
+  return sprites;
+}
 function build(){
   seed = seedBase; const raw = shapes[$('shape').value](+$('n').value);
   // el color va pegado al objeto: por altura, o del centro al borde si la figura es plana
@@ -369,7 +475,8 @@ function build(){
     key = p => radial ? 1 - Math.min(1, Math.hypot(p[0],p[1],p[2])) : flat ? 1 - Math.hypot(p[0],p[2]) : p[1];
   if (flat){ lo = Infinity; hi = -Infinity; for (const p of raw){ lo = Math.min(lo,key(p)); hi = Math.max(hi,key(p)); } }
   const bk = p => Math.min(NB-1, Math.floor((key(p)-lo)/((hi-lo)||1)*NB));
-  raw.sort((p,q) => bk(p)-bk(q)); pts = raw; bks = raw.map(bk);   // agrupados por color para pintar rápido
+  raw.sort((p,q) => bk(p)-bk(q)); pts = raw; bks = raw.map(bk);
+  GX = new Float32Array(pts.length); GY = new Float32Array(pts.length); GR = new Float32Array(pts.length); GA = new Float32Array(pts.length);   // agrupados por color para pintar rápido
 }
 let seedBase = 7;
 const PALETAS = {
@@ -408,7 +515,8 @@ function wrap(text, max){
 
 function draw(){
   ctx.fillStyle = $('cbg').value; ctx.fillRect(0,0,W,H);
-  const cols = colores();
+  const cols = colores(); ensureStars();
+  ctx.fillStyle = $('ctt').value; for (const st of stars){ ctx.globalAlpha = st[2]; ctx.fillRect(st[0], st[1], st[3], st[3]); }
   const tilt = +$('t').value*Math.PI/180, size = +$('s').value, dep = +$('d').value/100;
   const R = W*(+$('z').value/100), cy = H*0.47;
   const ca = Math.cos(angle), sa = Math.sin(angle), ct = Math.cos(tilt), st = Math.sin(tilt);
@@ -423,6 +531,14 @@ function draw(){
     ctx.globalAlpha = Math.max(.08, Math.min(1, a));
     const r = size*k*(W/1080)*1.2;
     ctx.fillRect(W/2 + x1*R - r/2, cy - y2*R - r/2, r, r);
+    GX[i] = W/2 + x1*R; GY[i] = cy - y2*R; GR[i] = r; GA[i] = ctx.globalAlpha;
+  }
+  const glow = +$('b').value/100;
+  if (glow > 0){                                            // halo suave: un sprite radial por color, sumado a la imagen
+    const sp = getSprites(cols); ctx.globalCompositeOperation = 'lighter'; last = -1;
+    for (let i = 0; i < pts.length; i++){ const s = GR[i]*7;
+      ctx.globalAlpha = Math.min(1, glow*.4*GA[i]); ctx.drawImage(sp[bks[i]], GX[i] - s/2, GY[i] - s/2, s, s); }
+    ctx.globalCompositeOperation = 'source-over';
   }
   ctx.globalAlpha = 1;
   ctx.fillStyle = $('ctt').value; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -442,14 +558,19 @@ function frame(now){
 function labels(){
   $('vN').textContent = $('n').value; $('vS').textContent = $('s').value;
   $('vV').textContent = $('v').value; $('vT').textContent = $('t').value+'°';
-  $('vD').textContent = $('d').value+'%'; $('vZ').textContent = $('z').value+'%';
+  $('vD').textContent = $('d').value+'%'; $('vB').textContent = $('b').value+'%'; $('vE').textContent = $('e').value; $('vZ').textContent = $('z').value+'%';
   $('vR').textContent = $('r').value+' s';
 }
 ['n','shape'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
-['s','v','t','d','z','r'].forEach(i => $(i).addEventListener('input', labels));
+['s','v','t','d','z','r','b','e'].forEach(i => $(i).addEventListener('input', labels));
+$('rnd').onclick = () => {
+  const o = $('shape').options, p = Object.values(PALETAS);
+  $('shape').selectedIndex = Math.floor(Math.random()*o.length); applyPalette(p[Math.floor(Math.random()*p.length)]);
+  seedBase = Math.floor(Math.random()*1e6) + 1; build();
+};
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',octahedron:'diamante',spring:'resorte',knot:'nudo',mobius:'mobius',coneInv:'cono_invertido',galaxy:'galaxia',torusKnot:'nudo_toroidal',icosahedron:'icosaedro',tornado:'tornado',heart:'corazon',ripples:'ondas',fibSphere:'esfera_fibonacci',saturn:'saturno',atom:'atomo',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',merkaba:'merkaba',infinity:'infinito',sunflower:'girasol'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',octahedron:'diamante',spring:'resorte',knot:'nudo',mobius:'mobius',coneInv:'cono_invertido',galaxy:'galaxia',torusKnot:'nudo_toroidal',icosahedron:'icosaedro',tornado:'tornado',heart:'corazon',ripples:'ondas',fibSphere:'esfera_fibonacci',saturn:'saturno',atom:'atomo',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',merkaba:'merkaba',infinity:'infinito',sunflower:'girasol',eye:'ojo',lotus:'loto',moon:'luna',tesseract:'teseracto',gyroscope:'giroscopio',coil:'bobina',nautilus:'nautilo',sierpinski:'sierpinski'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);
@@ -463,6 +584,7 @@ $('rec').onclick = async () => {
     'Puntos arriba ' + $('ca').value + ' | abajo ' + $('cb').value + ' | Degradado: ' + ($('grad').checked ? 'sí' : 'no'),
     'Texto de arriba: ' + ($('top').value.trim() || '(sin texto)'),
     'Texto de abajo: ' + ($('bot').value.trim() || '(sin texto)'),
+    'Brillo: ' + $('b').value + '% | Estrellas de fondo: ' + $('e').value,
     'Duración: ' + $('r').value + ' s | ' + $('fps').value + ' fps | Versión (semilla): ' + seedBase
   ].join('\n');
   const box = $('pedido'); box.hidden = false; box.value = t; box.rows = t.split('\n').length + 1;

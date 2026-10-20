@@ -12,7 +12,7 @@ Ejemplos:
 """
 import argparse, math, subprocess, sys
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1080, 1920
 SS = 3                      # supersampling de la figura (bordes suaves)
@@ -250,6 +250,64 @@ def formas(nombre, n, rng):
     if nombre == "girasol":
         i = np.arange(n); r = np.sqrt((i + .5) / n); a = i * 2.39996323
         return np.c_[r * np.cos(a), .4 * r * r - .2, r * np.sin(a)]
+    if nombre == "ojo":
+        R = .95; P = lambda al, ph: np.c_[R * np.sin(al) * np.cos(ph), R * np.sin(al) * np.sin(ph), R * np.cos(al)]   # +z mira al frente
+        q = rng.random(n); cnt = lambda lo, hi: int(((q >= lo) & (q < hi)).sum())
+        m = cnt(0, .36); al = np.arccos(1 - 2 * rng.random(m * 3)); al = al[al >= .5][:m]                    # esclerotica
+        esc = P(al, rng.random(len(al)) * 2 * math.pi)
+        m = cnt(.36, .46); borde = P(.45 + rng.normal(size=m) * .004, rng.random(m) * 2 * math.pi)              # borde del iris
+        m = cnt(.46, .84); fibras = P(.17 + rng.random(m) * .27, rng.integers(40, size=m) * 2 * math.pi / 40 + rng.normal(size=m) * .012)
+        m = cnt(.84, .92); pupila = P(.165 + rng.normal(size=m) * .004, rng.random(m) * 2 * math.pi)          # borde de la pupila
+        m = cnt(.92, 1.01); t = rng.random(m) * 2 * math.pi; venas = P(.5 + rng.random(m) * 1.6 + .15 * np.sin(t * 3), t)
+        return np.r_[esc, borde, fibras, pupila, venas]
+    if nombre == "loto":
+        # 3 coronas de petalos: las de afuera abiertas y caidas, las del medio a 45 grados, las de adentro paradas y curvadas al centro
+        K = np.array([13, 8, 5]); AL = np.radians([14, 42, 78]); LL = np.array([1, .9, .65]); B = np.array([.10, .08, .05])
+        BEND = np.array([.18, .05, 0]); CURL = np.array([0, 0, .35])
+        ne = int(n * .05); m = n - ne; q = rng.random(m); l = np.where(q < .45, 0, np.where(q < .8, 1, 2))
+        k = (rng.random(m) * K[l]).astype(int); t = rng.random(m) ** .9; sw = rng.random(m) * 2 - 1; s_ = t * LL[l]
+        hw = .24 * LL[l] * np.sin(math.pi * t ** .75) ** .9
+        rad = B[l] + s_ * np.cos(AL[l]) - CURL[l] * s_ ** 2; h = s_ * np.sin(AL[l]) - BEND[l] * s_ ** 2 + .9 * (sw * hw) ** 2; across = sw * hw
+        az = k * 2 * math.pi / K[l] + l * .35; c, sn = np.cos(az), np.sin(az)
+        petalos = np.c_[c * rad - sn * across, -.35 + h, sn * rad + c * across]
+        est = np.c_[rng.normal(size=ne) * .05, -.1 + rng.random(ne) * .3, rng.normal(size=ne) * .05]
+        return np.r_[petalos, est]
+    if nombre == "luna":
+        nz = lambda v: v / np.linalg.norm(v, axis=-1, keepdims=True)
+        cr = nz(rng.normal(size=(18, 3))); rh = .07 + rng.random(18) * .2
+        ns = int(n * .4); sup = nz(rng.normal(size=(ns, 3))) * .95
+        m = n - ns; j = rng.integers(18, size=m); c = cr[j]
+        h = np.where((np.abs(c[:, 1]) < .9)[:, None], [0, 1, 0], [1, 0, 0]).astype(float)
+        e1 = nz(np.cross(c, h)); e2 = np.cross(c, e1)
+        rr = np.where(rng.random(m) < .75, rh[j], rh[j] * np.sqrt(rng.random(m))); t = rng.random(m) * 2 * math.pi
+        cra = .95 * (np.cos(rr)[:, None] * c + np.sin(rr)[:, None] * (np.cos(t)[:, None] * e1 + np.sin(t)[:, None] * e2))
+        return np.r_[sup, cra]
+    if nombre == "teseracto":
+        V = np.array([[(m >> b & 1) * 2 - 1 for b in range(4)] for m in range(16)], dtype=float)
+        f = 1 / (3.2 - V[:, 3]); pr = V[:, :3] * f[:, None]; pr = pr / np.abs(pr).max() * .7
+        e = [(i, i | (1 << b)) for i in range(16) for b in range(4) if not (i >> b) & 1]
+        return _aristas(pr, e, n, rng)
+    if nombre == "giroscopio":
+        nc = int(n * .05); m = n - nc; t = rng.random(m) * 2 * math.pi; g = rng.integers(3, size=m)
+        Rr = np.array([1, .82, .64])[g]; c = np.cos(t) * Rr; s_ = np.sin(t) * Rr; z0 = np.zeros(m)
+        anillos = np.where((g == 0)[:, None], np.c_[z0, c, s_], np.where((g == 1)[:, None], np.c_[c, z0, s_], np.c_[c, s_, z0]))
+        return np.r_[anillos + rng.normal(size=(m, 3)) * .008, rng.normal(size=(nc, 3)) * .1]
+    if nombre == "bobina":
+        u = rng.random(n) * 2 * math.pi; v = 14 * u + np.where(rng.random(n) < .5, 0, math.pi); R, r = .7, .28
+        j = lambda: rng.normal(size=n) * .006
+        return np.c_[(R + r * np.cos(v)) * np.cos(u) + j(), r * np.sin(v) + j(), (R + r * np.cos(v)) * np.sin(u) + j()]
+    if nombre == "nautilo":
+        TM = 5 * math.pi; K = .28; A = math.exp(K * TM) - 1; Rf = lambda t: .12 * np.exp(.14 * t)
+        sep = rng.random(n) < .18
+        t = np.where(sep, rng.integers(28, size=n) * .56, np.log(1 + rng.random(n) * A) / K); R = Rf(t); rho = .3 * R
+        psi = rng.random(n) * 2 * math.pi; d = np.where(sep, np.sqrt(rng.random(n)), 1.); rd = rho * d
+        return np.c_[(R * np.cos(t) + rd * np.cos(psi) * np.cos(t)) / 1.5 + .1, (R * np.sin(t) + rd * np.cos(psi) * np.sin(t)) / 1.5, rd * np.sin(psi) / 1.5]
+    if nombre == "sierpinski":
+        V = np.array([[0, 1.04, 0]] + [[.98 * math.cos(math.radians(a)), -.35, .98 * math.sin(math.radians(a))] for a in (90, 210, 330)]) * .88
+        pick = rng.integers(4, size=n + 30); p = np.zeros(3); out = np.empty((n + 30, 3))
+        for i in range(n + 30):
+            p = (p + V[pick[i]]) / 2; out[i] = p
+        return out[30:]
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -278,7 +336,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "diamante", "resorte", "nudo", "mobius",
                                                   "cono_invertido", "galaxia", "nudo_toroidal", "icosaedro", "tornado", "corazon", "ondas", "esfera_fibonacci",
-                                                  "saturno", "atomo", "agujero_negro", "calabaza", "reloj_arena", "merkaba", "infinito", "girasol"])
+                                                  "saturno", "atomo", "agujero_negro", "calabaza", "reloj_arena", "merkaba", "infinito", "girasol",
+                                                  "ojo", "loto", "luna", "teseracto", "giroscopio", "bobina", "nautilo", "sierpinski"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -294,6 +353,8 @@ def main():
     ap.add_argument("--texto", help="color del texto")
     ap.add_argument("--color", help="color de los puntos (arriba si hay degradado)")
     ap.add_argument("--color2", help="color de los puntos abajo (activa el degradado)")
+    ap.add_argument("--brillo", type=float, default=0, help="0-100, halo de luz alrededor de los puntos")
+    ap.add_argument("--estrellas", type=int, default=0, help="cantidad de estrellitas de fondo")
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
@@ -310,6 +371,11 @@ def main():
     c_a = rgb(a.color or pa)
     c_b = rgb(a.color2) if a.color2 else (rgb(pb) if not a.color else c_a)
     base = c_bg + (c_tx - c_bg) * texto[..., None]          # fondo + texto, listo para pegar los puntos
+    if a.estrellas:
+        sr = np.random.default_rng(a.semilla + 101); N = a.estrellas
+        sx, sy = sr.integers(0, W - 3, N), sr.integers(0, H - 3, N); sb = .15 + .6 * sr.random(N) * sr.random(N); sz = np.where(sr.random(N) < .15, 3, 2)
+        for k in range(N):
+            base[sy[k]:sy[k] + sz[k], sx[k]:sx[k] + sz[k]] += c_tx * sb[k]
     # el color va pegado al objeto: por altura, o del centro al borde si la figura es plana
     if a.forma in ("agujero_negro", "galaxia"):
         eje = 1 - np.minimum(1, np.linalg.norm(pts, axis=1))      # del centro (color de arriba) al borde (color de abajo)
@@ -345,12 +411,17 @@ def main():
         for k in range(len(px)):
             e = (px[k] - r[k], py[k] - r[k], px[k] + r[k], py[k] + r[k])
             d.ellipse(e, fill=tuple(int(v) for v in pre[k])); dm.ellipse(e, fill=int(al[k] * 255))
-        col = np.asarray(img.resize((bw, bh), Image.LANCZOS), dtype=np.float32) / 255
+        cimg = img.resize((bw, bh), Image.LANCZOS)
+        col = np.asarray(cimg, dtype=np.float32) / 255
         cov = np.asarray(mk.resize((bw, bh), Image.LANCZOS), dtype=np.float32)[..., None] / 255
         out = base.copy()
         sub = out[box[1]:box[3], box[0]:box[2]]
         sub[:] = sub * (1 - cov) + col * 255
-        return (out + .5).astype(np.uint8)
+        if a.brillo > 0:     # halo: dos desenfoques (cerca y lejos) sumados a la imagen
+            g1 = np.asarray(cimg.filter(ImageFilter.GaussianBlur(4)), dtype=np.float32)
+            g2 = np.asarray(cimg.filter(ImageFilter.GaussianBlur(14)), dtype=np.float32)
+            sub += (g1 * 3 + g2 * 8) * (a.brillo / 100)
+        return (np.clip(out, 0, 255) + .5).astype(np.uint8)
 
     if a.preview:
         Image.fromarray(fotograma(int(total * a.preview_t))).save("preview.png"); print("preview.png"); return
