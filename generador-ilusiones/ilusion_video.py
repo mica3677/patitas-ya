@@ -10,7 +10,7 @@ Ejemplos:
     python3 ilusion_video.py --arriba "¿Lo ves girar?" --abajo "SÍGUEME." --seg 20 --fps 30
     python3 ilusion_video.py --preview                        # solo un PNG de control
 """
-import argparse, math, subprocess, sys
+import argparse, math, os, subprocess, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -32,6 +32,8 @@ PALETAS = {
     "violeta":  ("#0a0614", "#f3e8ff", "#f3e8ff", "#9d4edd"),
     "halloween": ("#0a0500", "#ffd9a0", "#ffb347", "#ff5e00"),
     "sangre":   ("#0a0002", "#ffd6d6", "#ff6b6b", "#8b0000"),
+    "usa":      ("#040818", "#ffffff", "#ff4155", "#2f6bff"),
+    "navidad":  ("#04100a", "#ffffff", "#ff5a5a", "#3ddc84"),
 }
 
 
@@ -78,7 +80,244 @@ def _cuerpo_calabaza(c, a):
     return np.c_[s * np.cos(a) * rr, c * .78, s * np.sin(a) * rr]
 
 
-def formas(nombre, n, rng):
+def _n3(v):
+    v = np.asarray(v, dtype=float); l = np.linalg.norm(v)
+    return v / (l if l else 1.)
+
+
+def _futbol_americano(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    def P(s, u, rr=1.):
+        rho = .54 * max(0., 1 - s * s) ** .75 * rr
+        return [s * .98, rho * math.sin(u), rho * math.cos(u)]
+    for _ in range(n):
+        q = R()
+        if q < .52: out.append(P(R() * 2 - 1, R() * 2 * math.pi))
+        elif q < .72: out.append(P((-1 if R() < .5 else 1) * (.5 if R() < .5 else .58) + G() * .004, R() * 2 * math.pi))
+        elif q < .82: out.append(P((R() * 2 - 1) * .3, G() * .012, 1.01))
+        else: out.append(P(-.25 + int(R() * 6) * .1 + G() * .006, (R() * 2 - 1) * .14, 1.01))
+    return np.array(out)
+
+
+def _baloncesto(n, rng):
+    R, G = rng.random, rng.normal; out = []; Rb = .95
+    for _ in range(n):
+        q = R(); t = R() * 2 * math.pi; c = math.cos(t) * Rb; s_ = math.sin(t) * Rb
+        if q < .3: out.append(_n3(rng.normal(size=3)) * Rb)
+        elif q < .5: out.append([c, G() * .006, s_])
+        elif q < .7: out.append([c, s_, G() * .006])
+        else:
+            sg = 1 if q < .85 else -1; rho = 1.15
+            out.append([Rb * math.sin(rho) * math.cos(t), Rb * math.sin(rho) * math.sin(t), sg * Rb * math.cos(rho)])
+    return np.array(out)
+
+
+def _futbol(n, rng):
+    R = rng.random; f = (1 + 5 ** .5) / 2; Rb = .95; V = []
+    for a in (-1, 1):
+        for b in (-f, f):
+            V += [[0, a, b], [a, b, 0], [b, 0, a]]
+    V = np.array(V, dtype=float)
+    E = [(i, j) for i in range(12) for j in range(i + 1, 12) if abs(((V[i] - V[j]) ** 2).sum() - 4) < .01]
+    T = np.array([V[i] + (V[j] - V[i]) * t for i, j in E for t in (1 / 3, 2 / 3)])
+    D = np.linalg.norm(T[:, None] - T[None], axis=2); dm = D[D > 1e-9].min()
+    SE = [(i, j) for i in range(60) for j in range(i + 1, 60) if D[i, j] < dm * 1.02]
+    caps = np.array([_n3(v) for v in V]); out = []
+    for _ in range(n):
+        q = R()
+        if q < .74:
+            a, b = SE[int(R() * len(SE))]; out.append(_n3(T[a] + (T[b] - T[a]) * R()) * Rb)
+        elif q < .9:
+            c = caps[int(R() * 12)]
+            while True:
+                v = c + (rng.random(3) * 2 - 1) * .27
+                if np.linalg.norm(v - c) <= .27: break
+            out.append(_n3(v) * Rb)
+        else: out.append(_n3(rng.normal(size=3)) * Rb)
+    return np.array(out)
+
+
+def _ovni(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .34:
+            r = math.sqrt(R()); out.append([r * math.cos(a), .17 * max(0., 1 - r * r) ** .6 * (1 if R() < .5 else -1), r * math.sin(a)])
+        elif q < .48:
+            v = _n3([G(), abs(G()), G()]); out.append([v[0] * .36, .1 + v[1] * .36, v[2] * .36])
+        elif q < .6:
+            k = int(R() * 12) * math.pi / 6; out.append([.9 * math.cos(k) + G() * .03, G() * .025, .9 * math.sin(k) + G() * .03])
+        elif q < .66: out.append([.97 * math.cos(a), G() * .01, .97 * math.sin(a)])
+        elif q < .7: out.append([.45 * math.cos(a), -.14, .45 * math.sin(a)])
+        else:
+            y = -.18 - R() * .82; r = .06 + .64 * (-.18 - y) / .82; out.append([r * math.cos(a), y, r * math.sin(a)])
+    return np.array(out)
+
+
+def _cohete(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .3: out.append([.22 * math.cos(a), -.5 + R() * 1.05, .22 * math.sin(a)])
+        elif q < .42:
+            t = R(); out.append([.22 * (1 - t) * math.cos(a), .55 + t * .45, .22 * (1 - t) * math.sin(a)])
+        elif q < .58:
+            az = int(R() * 3) * 2 * math.pi / 3 + math.pi / 2; u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            r = .22 + v * .4; y = -.05 - u * .45 - v * .63
+            out.append([r * math.cos(az) + G() * .004, y, r * math.sin(az) + G() * .004])
+        elif q < .63:
+            r = math.sqrt(R()); t = R() * 2 * math.pi; x = .1 * r * math.cos(t)
+            out.append([x, .22 + .1 * r * math.sin(t), math.sqrt(max(0., .0484 - x * x)) + .005])
+        elif q < .7: out.append([.225 * math.cos(a), .05 if R() < .5 else -.25, .225 * math.sin(a)])
+        else:
+            t = R(); r = .19 * (1 - t) * math.sqrt(R()); out.append([r * math.cos(a) + G() * .01, -.5 - t * .62, r * math.sin(a) + G() * .01])
+    return np.array(out)
+
+
+def _estrella(n, rng):
+    R = rng.random; out = []
+    V = [[(.4 if k % 2 else 1) * math.cos(math.pi / 2 + k * math.pi / 5), (.4 if k % 2 else 1) * math.sin(math.pi / 2 + k * math.pi / 5) - .095] for k in range(10)]
+    for _ in range(n):
+        q = R(); k = int(R() * 10); A = V[k]; B = V[(k + 1) % 10]
+        if q < .55:
+            u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            out.append([A[0] * u + B[0] * v, (A[1] + .095) * u + (B[1] + .095) * v - .095, (1 if R() < .5 else -1) * (.04 + .13 * (1 - u - v))])
+        elif q < .8:
+            u = R(); out.append([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u, (R() * 2 - 1) * .045])
+        else:
+            P = V[2 * int(R() * 5)]; u = R()
+            out.append([P[0] * (1 - u), (P[1] + .095) * (1 - u) - .095, (1 if R() < .5 else -1) * (.17 * (1 - u) + .04)])
+    return np.array(out)
+
+
+def _copo(n, rng):
+    V = [[0, 0, 0]]; E = []
+    def add(p, q, w):
+        V.append(p); V.append(q); E.extend([(len(V) - 2, len(V) - 1)] * w)
+    for k in range(6):
+        a = math.pi / 2 + k * math.pi / 3; d = [math.cos(a), math.sin(a)]
+        add([0, 0, 0], [d[0], d[1], 0], 4)
+        for t, L, w in ((.3, .42, 2), (.55, .3, 2), (.78, .18, 1)):
+            for sg in (-1, 1):
+                b = a + sg * math.pi / 3; p = [d[0] * t, d[1] * t, 0]
+                add(p, [p[0] + math.cos(b) * L, p[1] + math.sin(b) * L, 0], w)
+    pts = _aristas(np.array(V) * .95, E, n, rng)
+    return pts + rng.normal(size=(n, 3)) * [.006, .006, .012]
+
+
+def _arbol(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    TI = [(-.6 + .36 * j, .6, .86 - .18 * j) for j in range(4)]
+    gar = lambda s: [(.86 * (1 - s) + .04) * math.cos(s * 12 * math.pi), -.6 + 1.68 * s, (.86 * (1 - s) + .04) * math.sin(s * 12 * math.pi)]
+    fin = lambda p: [p[0] * .88, (p[1] - .175) * .88, p[2] * .88]
+    SV = [[(.4 if k % 2 else 1) * .13 * math.cos(math.pi / 2 + k * math.pi / 5), (.4 if k % 2 else 1) * .13 * math.sin(math.pi / 2 + k * math.pi / 5)] for k in range(10)]
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .5:
+            u = R(); yb, h, Rr = TI[0 if u < .4 else 1 if u < .7 else 2 if u < .9 else 3]
+            t = R() ** .7; r = Rr * (1 - t) * (1 + .05 * math.cos(12 * a)); out.append(fin([r * math.cos(a), yb + h * t, r * math.sin(a)]))
+        elif q < .54: out.append(fin([.1 * math.cos(a), -.85 + R() * .25, .1 * math.sin(a)]))
+        elif q < .74:
+            p = gar(R()); out.append(fin([p[0] + G() * .01, p[1], p[2] + G() * .01]))
+        elif q < .92:
+            p = gar(.06 + int(R() * 14) * .065); v = _n3(rng.normal(size=3))
+            out.append(fin([p[0] * 1.1 + v[0] * .05, p[1] + v[1] * .05, p[2] * 1.1 + v[2] * .05]))
+        else:
+            k = int(R() * 10); A = SV[k]; B = SV[(k + 1) % 10]; u = R()
+            out.append(fin([A[0] + (B[0] - A[0]) * u, 1.2 + A[1] + (B[1] - A[1]) * u, G() * .01]))
+    return np.array(out)
+
+
+def _fantasma(n, rng):
+    R, G = rng.random, rng.normal; out = []; Rg = .55; hem = lambda a: -.72 + .13 * math.cos(4 * a)
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .22:
+            v = _n3([G(), abs(G()), G()]); out.append([v[0] * Rg, .3 + v[1] * Rg, v[2] * Rg])
+        elif q < .7:
+            h = hem(a); out.append([Rg * math.cos(a), h + R() * (.3 - h), Rg * math.sin(a)])
+        elif q < .78: out.append([Rg * math.cos(a), hem(a) + G() * .006, Rg * math.sin(a)])
+        elif q < .9:
+            sx = -1 if R() < .5 else 1; r = math.sqrt(R()); t = R() * 2 * math.pi; ex = sx * .2 + .07 * r * math.cos(t)
+            out.append([ex, .2 + .11 * r * math.sin(t), math.sqrt(max(0., Rg * Rg - ex * ex)) * .98])
+        else:
+            r = math.sqrt(R()); t = R() * 2 * math.pi; ex = .09 * r * math.cos(t)
+            out.append([ex, -.12 + .13 * r * math.sin(t), math.sqrt(max(0., Rg * Rg - ex * ex)) * .98])
+    return np.array(out)
+
+
+def _calavera(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    rx = lambda y: .62 * math.sqrt(max(0., 1 - ((y - .2) / .62) ** 2)) if y >= .2 else .62 - .26 * min(1., (.2 - y) / .7)
+    zf = lambda x, y: rx(y) * 1.08 * math.sqrt(max(.02, 1 - (x / max(.05, rx(y))) ** 2)) + .006
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .56 or q >= .92:
+            y = -.5 + R() * 1.32; r = rx(y); out.append([r * math.cos(a), y, r * 1.08 * math.sin(a)])
+        elif q < .62:
+            sx = -1 if R() < .5 else 1; x = sx * .27 + .17 * math.cos(a); y = .1 + .2 * math.sin(a); out.append([x, y, zf(x, y)])
+        elif q < .72:
+            sx = -1 if R() < .5 else 1; r = math.sqrt(R()); x = sx * .27 + .17 * r * math.cos(a); y = .1 + .2 * r * math.sin(a); out.append([x, y, zf(x, y)])
+        elif q < .76:
+            u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            x = -.08 * u + .08 * v; y = -.06 - .2 * u - .2 * v; out.append([x, y, zf(x, y)])
+        elif q < .86:
+            k = int(R() * 8); x = -.21 + k * .06 + G() * .003; y = -.5 + R() * .2; out.append([x, y, zf(x, y)])
+        else:
+            y = -.3 if R() < .5 else -.4; x = (R() * 2 - 1) * .23; out.append([x, y, zf(x, y)])
+    return np.array(out)
+
+
+def _telarana(n, rng):
+    R, G = rng.random, rng.normal; out = []; M = 12; D = 2 * math.pi / M
+    off = [m * D + G() * .04 for m in range(M)]
+    def ring_pt():
+        k = 1 + int(R() * 9); r0 = k * .105; m = int(R() * M); a0 = off[m]
+        a1 = off[(m + 1) % M] + (2 * math.pi if m + 1 == M else 0); f = R(); a = a0 + (a1 - a0) * f; r = r0 * (1 - .1 * math.sin(math.pi * f))
+        return [r * math.cos(a), r * math.sin(a)]
+    dew = [ring_pt() for _ in range(18)]
+    for _ in range(n):
+        q = R()
+        if q < .3:
+            m = int(R() * M); r = math.sqrt(R()); out.append([r * math.cos(off[m]), r * math.sin(off[m]), G() * .008])
+        elif q < .9:
+            p = ring_pt(); out.append([p[0], p[1], G() * .008])
+        else:
+            p = dew[int(R() * len(dew))]; out.append([p[0] + G() * .012, p[1] + G() * .012, G() * .012])
+    return np.array(out)
+
+
+def _texto3d(n, rng, palabra):
+    CW, CH = 1200, 400; txt = (palabra or "USA")[:14]
+    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts", "Poppins-ExtraBold.ttf")
+    fs = 300
+    def fuente(sz):
+        try: return ImageFont.truetype(ruta, int(sz))
+        except OSError: return font(FONTS_B, int(sz))
+    img = Image.new("L", (CW, CH), 0); d = ImageDraw.Draw(img)
+    tw = d.textlength(txt, font=fuente(fs))
+    if tw > 1100: fs = fs * 1100 / tw
+    d.text((CW / 2, CH / 2 + 15), txt, font=fuente(fs), fill=255, anchor="mm")
+    on = np.asarray(img) > 128
+    def sh(dx, dy): return np.roll(np.roll(on, dy, 0), dx, 1)
+    borde = on & ~(sh(3, 0) & sh(-3, 0) & sh(0, 3) & sh(0, -3))
+    ys, xs = np.mgrid[0:CH:2, 0:CW:2]; sel = on[::2, ::2]
+    px, py, pb = xs[sel], ys[sel], borde[::2, ::2][sel]
+    if not len(px): return np.zeros((n, 3))
+    sc = min(1.9 / max(1, px.max() - px.min()), 1.2 / max(1, py.max() - py.min())); cx, cy = (px.min() + px.max()) / 2, (py.min() + py.max()) / 2
+    T = .11; q = rng.random(n); i = rng.integers(len(px), size=n)
+    bi = np.flatnonzero(pb)
+    if len(bi): ib = bi[rng.integers(len(bi), size=n)]
+    else: ib = i
+    usar_borde = (q >= .68) & (len(bi) > 0); idx = np.where(usar_borde, ib, i)
+    z = np.where(usar_borde, (rng.random(n) * 2 - 1) * T, np.where(q < .34, T, -T))
+    return np.c_[(px[idx] - cx) * sc, -(py[idx] - cy) * sc, z]
+
+
+def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
         pts = np.empty((n, 3))
@@ -308,6 +547,18 @@ def formas(nombre, n, rng):
         for i in range(n + 30):
             p = (p + V[pick[i]]) / 2; out[i] = p
         return out[30:]
+    if nombre == "futbol_americano": return _futbol_americano(n, rng)
+    if nombre == "baloncesto": return _baloncesto(n, rng)
+    if nombre == "futbol": return _futbol(n, rng)
+    if nombre == "ovni": return _ovni(n, rng)
+    if nombre == "cohete": return _cohete(n, rng)
+    if nombre == "estrella": return _estrella(n, rng)
+    if nombre == "copo": return _copo(n, rng)
+    if nombre == "arbol_navidad": return _arbol(n, rng)
+    if nombre == "fantasma": return _fantasma(n, rng)
+    if nombre == "calavera": return _calavera(n, rng)
+    if nombre == "telarana": return _telarana(n, rng)
+    if nombre == "texto3d": return _texto3d(n, rng, palabra)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -337,7 +588,9 @@ def main():
     ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "diamante", "resorte", "nudo", "mobius",
                                                   "cono_invertido", "galaxia", "nudo_toroidal", "icosaedro", "tornado", "corazon", "ondas", "esfera_fibonacci",
                                                   "saturno", "atomo", "agujero_negro", "calabaza", "reloj_arena", "merkaba", "infinito", "girasol",
-                                                  "ojo", "loto", "luna", "teseracto", "giroscopio", "bobina", "nautilo", "sierpinski"])
+                                                  "ojo", "loto", "luna", "teseracto", "giroscopio", "bobina", "nautilo", "sierpinski",
+                                                  "futbol_americano", "baloncesto", "futbol", "ovni", "cohete", "estrella", "copo",
+                                                  "arbol_navidad", "fantasma", "calavera", "telarana", "texto3d"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -355,6 +608,7 @@ def main():
     ap.add_argument("--color2", help="color de los puntos abajo (activa el degradado)")
     ap.add_argument("--brillo", type=float, default=0, help="0-100, halo de luz alrededor de los puntos")
     ap.add_argument("--estrellas", type=int, default=0, help="cantidad de estrellitas de fondo")
+    ap.add_argument("--palabra", default="USA", help="texto para la forma texto3d")
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
@@ -364,7 +618,7 @@ def main():
     a = ap.parse_args()
 
     rng = np.random.default_rng(a.semilla)
-    pts = formas(a.forma, a.puntos, rng)
+    pts = formas(a.forma, a.puntos, rng, a.palabra)
     texto = capa_texto(a.arriba, a.abajo)
     pbg, ptx, pa, pb = PALETAS[a.paleta]
     c_bg, c_tx = rgb(a.fondo or pbg), rgb(a.texto or ptx)
