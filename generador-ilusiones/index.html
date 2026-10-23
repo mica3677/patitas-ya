@@ -44,7 +44,6 @@
   <select id="shape">
     <option value="sphere">Esfera (malla de puntos)</option>
     <option value="cylinder">Cilindro (puntos al azar)</option>
-    <option value="cube">Cubo (aristas)</option>
     <option value="torus">Toro (dona)</option>
         <option value="cone">Cono</option>
     <option value="pyramid">Pirámide</option>
@@ -72,15 +71,21 @@
     <option value="web">Telaraña</option>
     <option value="text3d">Texto 3D (tu palabra)</option>
         <option value="gem">Diamante (joya)</option>
-    <option value="donut">Dona con chispas</option>
-    <option value="burger">Hamburguesa</option>
     <option value="flag">Bandera de EE. UU.</option>
     <option value="snowman">Muñeco de nieve</option>
     <option value="candyCane">Bastón de caramelo</option>
-    <option value="gift">Regalo con moño</option>
     <option value="dice">Dado</option>
     <option value="coin">Moneda de oro ($)</option>
-    <option value="trophy">Trofeo</option>
+        <option value="cube">Cubo cortado (dos colores)</option>
+    <option value="fibSphere">Esfera uniforme</option>
+    <option value="jellyfish">Medusa</option>
+    <option value="butterfly">Mariposa</option>
+    <option value="world">Planeta</option>
+    <option value="oak">Árbol (fractal)</option>
+    <option value="comet">Cometa</option>
+    <option value="nebula">Nebulosa</option>
+    <option value="plasma">Esfera de plasma</option>
+    <option value="burst">Explosión de estrellas</option>
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
@@ -114,8 +119,6 @@
   <input type="text" id="top" value="¿Puedes invertir el giro solo con tu mente?">
   <label>Texto de abajo</label>
   <input type="text" id="bot" value="SÍGUEME SI LO LOGRASTE.">
-  <label for="fps">Cuadros por segundo</label>
-  <select id="fps"><option value="60">60 fps (más fluido)</option><option value="30">30 fps</option></select>
   <label>Duración del video (s) <span id="vR"></span></label>
   <input type="range" id="r" min="5" max="30" step="1" value="15">
   <div class="chk"><input type="checkbox" id="rev"><label for="rev" style="margin:0;color:inherit;text-transform:none;font-size:14px">Girar al revés</label></div>
@@ -194,15 +197,6 @@ const shapes = {
       const a = rnd()*2*Math.PI, y = rnd()*2 - 1;
       out.push([Math.cos(a)*0.55, y*0.95, Math.sin(a)*0.55]);
     }
-    return out;
-  },
-  cube(n){
-    const out = [], c = [-.7,.7], edges = [];
-    for (const x of c) for (const y of c) for (const z of c){
-      for (let k = 0; k < 3; k++){ const p=[x,y,z]; if (p[k] < 0){ const q=[...p]; q[k]=.7; edges.push([p,q]); } }
-    }
-    for (let i = 0; i < n; i++){ const [p,q] = edges[Math.floor(rnd()*edges.length)], u = rnd();
-      out.push([p[0]+(q[0]-p[0])*u, p[1]+(q[1]-p[1])*u, p[2]+(q[2]-p[2])*u]); }
     return out;
   },
   torus(n){
@@ -490,33 +484,6 @@ const shapes = {
       e.push([k, k1], [k, k1], [8+k, 8+k1], [k, 8+k], [k, 8 + (k+7) % 8], [8+k, 16], [8+k, 16]); }
     return edgeShape(n, v.map(p => [p[0], p[1] + .24, p[2]]), e);
   },
-  donut(n){
-    const out = [], R0 = .62, r0 = .34, ph = .9, edge = u => .1*Math.PI + .13*Math.sin(9*u) + .06*Math.sin(17*u + 1),   // borde ondulado del glaseado
-      rot = ([x, y, z]) => [x, y*Math.cos(ph) - z*Math.sin(ph), y*Math.sin(ph) + z*Math.cos(ph)],
-      T = (u, v, k = 1) => { const rr = r0*k; return rot([(R0 + rr*Math.cos(v))*Math.cos(u), rr*Math.sin(v), (R0 + rr*Math.cos(v))*Math.sin(u)]); },
-      SP = Array.from({length: 70}, () => { const u = rnd()*2*Math.PI, e = edge(u); return [T(u, e + rnd()*(Math.PI - 2*e), 1.09), norm3([gauss(), gauss(), gauss()])]; });
-    for (let i = 0; i < n; i++){ const q = rnd(), u = rnd()*2*Math.PI, e = edge(u);
-      if (q < .42) out.push(T(u, rnd()*2*Math.PI));
-      else if (q < .8) out.push(T(u, e + rnd()*(Math.PI - 2*e), 1.05));                                                    // glaseado
-      else if (q < .87) out.push(T(u, rnd() < .5 ? e : Math.PI - e, 1.05));
-      else { const [c, d] = SP[Math.floor(rnd()*SP.length)], t = (rnd()*2 - 1)*.045; out.push([c[0] + d[0]*t, c[1] + d[1]*t, c[2] + d[2]*t]); }   // chispas
-    }
-    return out;
-  },
-  burger(n){
-    const out = [], seeds = Array.from({length: 16}, () => norm3([gauss(), Math.abs(gauss()) + .35, gauss()])), c45 = Math.SQRT1_2;
-    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI;
-      if (q < .26 || q >= .87){ const v = norm3([gauss(), Math.abs(gauss()), gauss()]); out.push([v[0]*.95, .22 + v[1]*.62, v[2]*.95]); }                  // pan de arriba
-      else if (q < .32){ const s = seeds[Math.floor(rnd()*16)]; out.push([s[0]*.95 + gauss()*.03, .22 + s[1]*.62 + gauss()*.012, s[2]*.95 + gauss()*.012]); }   // semillas
-      else if (q < .46){ const r = .72 + rnd()*.3, w = 1 + .06*Math.sin(14*a); out.push([r*w*Math.cos(a), .07 + .04*Math.sin(7*a) + gauss()*.006, r*w*Math.sin(a)]); }   // lechuga
-      else if (q < .55){ const u = rnd()*2 - 1, v = rnd()*2 - 1; out.push([.75*(u*c45 - v*c45), -.04 - .16*Math.max(0, Math.max(Math.abs(u), Math.abs(v)) - .7)/.3, .75*(u*c45 + v*c45)]); }   // queso
-      else if (q < .67) out.push([.92*Math.cos(a), -.32 + rnd()*.2, .92*Math.sin(a)]);                                                                  // carne
-      else if (q < .72){ const r = Math.sqrt(rnd())*.9; out.push([r*Math.cos(a), -.12, r*Math.sin(a)]); }
-      else if (q < .84) out.push([.94*Math.cos(a), -.7 + rnd()*.27, .94*Math.sin(a)]);                                                                 // pan de abajo
-      else { const r = Math.sqrt(rnd())*.93; out.push([r*Math.cos(a), -.7, r*Math.sin(a)]); }
-    }
-    return out.map(p => [p[0], p[1] - .07, p[2]]);
-  },
   flag(n){
     const out = [], W0 = .95, H0 = .5, cy0 = H0 - .538, wave = x => .14*((x + W0)/(2*W0))*Math.sin(4.5*x),
       P = (x, y) => [x, y + .035*((x + W0)/(2*W0))*Math.sin(4.5*x + 1) + .23, wave(x)], stars = [];
@@ -554,21 +521,6 @@ const shapes = {
       out.push([c[0] + .09*Math.cos(psi)*P[0] - .25, c[1] + .09*Math.cos(psi)*P[1] + .13, .09*Math.sin(psi)]); }
     return out;
   },
-  gift(n){
-    const out = [], H = .7, ed = [];
-    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]){ const p = [x, y, z]; for (let k = 0; k < 3; k++) if (p[k] < 0){ const q = [...p]; q[k] = 1; ed.push([p, q]); } }
-    for (let i = 0; i < n; i++){ const q = rnd();
-      if (q < .24){ const [p, r] = ed[Math.floor(rnd()*12)], u = rnd(); out.push([0, 1, 2].map(k => (p[k] + (r[k] - p[k])*u)*H)); }                     // aristas
-      else if (q < .42){ const k = Math.floor(rnd()*3), p = [0, 0, 0]; p[k] = rnd() < .5 ? -1 : 1; p[(k+1) % 3] = rnd()*2 - 1; p[(k+2) % 3] = rnd()*2 - 1; out.push(p.map(c => c*H)); }
-      else if (q < .64){ const f = Math.floor(rnd()*4), e = (rnd() < .5 ? -.14 : .14)*H, t = (rnd()*2 - 1)*H;                                           // cinta en los lados
-        out.push(f < 2 ? [(f ? 1 : -1)*H, t, e] : [e, t, (f === 2 ? 1 : -1)*H]); }
-      else if (q < .74){ const e = (rnd() < .5 ? -.14 : .14)*H, t = (rnd()*2 - 1)*H; out.push(rnd() < .5 ? [e, H*1.004, t] : [t, H*1.004, e]); }          // cinta arriba
-      else if (q < .94){ const A = Math.floor(rnd()*4)*Math.PI/2 + Math.PI/4, t = rnd()*2*Math.PI, d = .26 + .24*Math.cos(t);                           // moño
-        out.push([d*Math.cos(A) + gauss()*.006, H + .14 + .17*Math.sin(t), d*Math.sin(A) + gauss()*.006]); }
-      else { const v = norm3([gauss(), gauss(), gauss()]); out.push([v[0]*.09, H + .09 + v[1]*.09, v[2]*.09]); }
-    }
-    return out.map(p => [p[0], p[1] - .1, p[2]]);
-  },
   dice(n){
     const out = [], H = .7, ed = [], F = [[2, 1, 1], [2, -1, 6], [0, 1, 3], [0, -1, 4], [1, 1, 2], [1, -1, 5]],
       LY = {1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]}, pips = [];
@@ -593,17 +545,100 @@ const shapes = {
     }
     return out;
   },
-  trophy(n){
-    const PR = [[0, -1], [.6, -1], [.6, -.9], [.45, -.9], [.45, -.8], [.16, -.72], [.16, -.4], [.28, -.34], [.28, -.26], [.16, -.2], [.2, -.1], [.5, .15], [.64, .5], [.66, .75]],
-      cum = [0], out = [];
-    for (let k = 1; k < PR.length; k++) cum.push(cum[k-1] + Math.hypot(PR[k][0] - PR[k-1][0], PR[k][1] - PR[k-1][1]));
-    const tot = cum[cum.length - 1];
-    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI;
-      if (q < .74){ const u = rnd()*tot; let k = 1; while (cum[k] < u) k++;                                                                           // copa y pie
-        const t = (u - cum[k-1])/(cum[k] - cum[k-1]), r = PR[k-1][0] + (PR[k][0] - PR[k-1][0])*t, y = PR[k-1][1] + (PR[k][1] - PR[k-1][1])*t; out.push([r*Math.cos(a), y + .12, r*Math.sin(a)]); }
-      else if (q < .8) out.push([.66*Math.cos(a), .87, .66*Math.sin(a)]);
-      else { const sx = rnd() < .5 ? -1 : 1, t = (rnd()*2 - 1)*Math.PI/2; out.push([sx*(.58 + .3*Math.cos(t)) + gauss()*.008, .45 + .3*Math.sin(t), gauss()*.008]); }   // asas
+  cube(n){        // cubo con una esquina abierta: por fuera un color y por dentro otro
+    const out = [], H = .72, cut = p => p[0] > 0 && p[1] > 0 && p[2] > 0, ed = [];
+    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]){ const p = [x, y, z]; for (let k = 0; k < 3; k++) if (p[k] < 0){ const q = [...p]; q[k] = 1; ed.push([p, q]); } }
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .5){ let p; do { const k = Math.floor(rnd()*3); p = [0, 0, 0]; p[k] = rnd() < .5 ? -H : H; p[(k+1) % 3] = (rnd()*2 - 1)*H; p[(k+2) % 3] = (rnd()*2 - 1)*H; } while (cut(p)); out.push([...p, 0, 1]); }
+      else if (q < .68){ let p; do { const [a, b] = ed[Math.floor(rnd()*12)], u = rnd(); p = [0, 1, 2].map(k => (a[k] + (b[k] - a[k])*u)*H); } while (cut(p)); out.push([...p, 0, 1]); }
+      else { const k = Math.floor(rnd()*3), p = [0, 0, 0]; p[(k+1) % 3] = rnd()*H; p[(k+2) % 3] = rnd()*H; out.push([...p, 0, 0]); }
     }
+    return out;
+  },
+  jellyfish(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI;
+      if (q < .3){ const v = norm3([gauss(), Math.abs(gauss()), gauss()]), rr = 1 + .06*Math.sin(10*Math.atan2(v[2], v[0]))*(1 - v[1]); out.push([v[0]*.62*rr, .35 + v[1]*.5, v[2]*.62*rr, 0, 1]); }   // campana
+      else if (q < .38){ const m = Math.floor(rnd()*12)*Math.PI/6, t = rnd()*Math.PI/2; out.push([.62*Math.sin(t)*Math.cos(m), .35 + .5*Math.cos(t), .62*Math.sin(t)*Math.sin(m), 0, 1]); }   // nervaduras
+      else if (q < .43){ const rr = 1 + .06*Math.sin(10*a); out.push([.62*rr*Math.cos(a), .35, .62*rr*Math.sin(a), 0, 1]); }
+      else if (q < .58){ const t = rnd(), k = Math.floor(rnd()*4)*Math.PI/2 + .4, ph = k + 5*t; out.push([.13*Math.cos(ph) + gauss()*.012, .3 - t*.95, .13*Math.sin(ph) + gauss()*.012, 0, 0]); }     // brazos orales
+      else { const t = rnd(), tk = Math.floor(rnd()*18)*2*Math.PI/18, r = .6*(1 - .3*t); out.push([r*Math.cos(tk) + .05*Math.sin(8*t + tk*3), .35 - t*1.1, r*Math.sin(tk) + .05*Math.cos(8*t + tk*3), 0, 0]); }   // tentáculos
+    }
+    return out.map(p => [p[0], p[1] - .0, p[2], 0, p[4]]);
+  },
+  butterfly(n){
+    const out = [], f = th => Math.exp(Math.cos(th)) - 2*Math.cos(4*th) - Math.pow(Math.sin(th/12), 5);
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .1){ out.push([gauss()*.015, -.5 + rnd()*1, gauss()*.015, 0, 1]); continue; }                                                   // cuerpo
+      if (q < .14){ const s = rnd() < .5 ? -1 : 1, t = rnd(); out.push([s*(.03 + .25*t), .4 + .32*Math.sqrt(t), gauss()*.004, 0, 1]); continue; }  // antenas
+      const th = rnd()*24*Math.PI, r = f(th)/3.8, sc = q < .45 ? 1 : .15 + .85*rnd(), x = Math.sin(th)*r*sc, y = Math.cos(th)*r*sc;            // alas (curvas de nivel)
+      out.push([x, y + .05, .22*Math.abs(x) + gauss()*.004, 0, sc > .72 ? 1 : 0]);
+    }
+    return out;
+  },
+  world(n){
+    const out = [], land = p => Math.sin(2.1*p[0] + 1.3*p[1]) + Math.sin(2.9*p[1] - 1.7*p[2] + 2) + Math.sin(3.4*p[2] + 2.2*p[0] - 1) + .7*Math.sin(4.6*p[0] - 3.1*p[1] + .7*p[2]) + .5*Math.sin(6.3*p[1] + 5.2*p[2] - p[0]) > 1.0;
+    for (let i = 0; i < n; i++){
+      for (let g = 0; g < 300; g++){ const v = norm3([gauss(), gauss(), gauss()]), l = land(v);
+        if (l || rnd() < .2){ out.push([v[0]*.92, v[1]*.92, v[2]*.92, 0, l ? 1 : 0]); break; } }                                              // continentes densos, mar ralo
+    }
+    return out;
+  },
+  oak(n){
+    const segs = [], tips = [], out = [],
+      rot = (v, ax, ang) => { const c = Math.cos(ang), s = Math.sin(ang), d = ax[0]*v[0] + ax[1]*v[1] + ax[2]*v[2], cr = [ax[1]*v[2] - ax[2]*v[1], ax[2]*v[0] - ax[0]*v[2], ax[0]*v[1] - ax[1]*v[0]];
+        return [0, 1, 2].map(k => v[k]*c + cr[k]*s + ax[k]*d*(1 - c)); },
+      grow = (p, d, L, depth) => { const q = [p[0] + d[0]*L, p[1] + d[1]*L, p[2] + d[2]*L]; for (let k = 0; k < 6 - depth; k++) segs.push([p, q]);
+        if (depth >= 6){ tips.push(q); return; }
+        const kids = depth < 2 ? 3 : 2 + (rnd() < .4 ? 1 : 0);
+        for (let c = 0; c < kids; c++){ let ax = norm3([gauss(), gauss(), gauss()]); const dp = ax[0]*d[0] + ax[1]*d[1] + ax[2]*d[2]; ax = norm3(ax.map((v, k) => v - d[k]*dp));
+          grow(q, rot(d, ax, .4 + rnd()*.35), L*.74, depth + 1); } };
+    grow([0, -.95, 0], [0, 1, 0], .55, 0);
+    for (let i = 0; i < n; i++){
+      if (rnd() < .5){ const [a, b] = segs[Math.floor(rnd()*segs.length)], u = rnd(); out.push([0, 1, 2].map(k => a[k] + (b[k] - a[k])*u + gauss()*.004).concat([0, 0])); }      // ramas
+      else { const t = tips[Math.floor(rnd()*tips.length)]; out.push([t[0] + gauss()*.07, t[1] + gauss()*.07, t[2] + gauss()*.07, 0, 1]); }                                     // hojas
+    }
+    let y0 = 1e9, y1 = -1e9, rm = 0; for (const p of out){ y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); rm = Math.max(rm, Math.hypot(p[0], p[2])); }
+    const sc = Math.min(1.9/(y1 - y0), .95/(rm || 1)), cy = (y0 + y1)/2;
+    return out.map(p => [p[0]*sc, (p[1] - cy)*sc, p[2]*sc, 0, p[4]]);
+  },
+  comet(n){
+    const out = [], H = [.62, .25, 0];
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .22){ const v = norm3([gauss(), gauss(), gauss()]), r = .13*Math.sqrt(rnd()); out.push([H[0] + v[0]*r, H[1] + v[1]*r, v[2]*r, 0, 1]); }       // cabeza
+      else if (q < .3){ const v = norm3([gauss(), gauss(), gauss()]); out.push([H[0] + v[0]*.19, H[1] + v[1]*.19, v[2]*.19, 0, 1]); }                    // halo
+      else { const t = Math.pow(rnd(), .8), w = .03 + .3*t, ph = q < .6 ? rnd()*2*Math.PI : t*6 + Math.floor(rnd()*5)*2*Math.PI/5, rr = q < .6 ? w*Math.sqrt(rnd()) : w*.85;   // cola con hebras
+        out.push([H[0] - t*1.6, H[1] - .5*t*t + rr*Math.cos(ph), rr*Math.sin(ph), 0, 0]); }
+    }
+    return out;
+  },
+  nebula(n){
+    const B = Array.from({length: 6}, (_, k) => ({c: [gauss()*.3, gauss()*.3, gauss()*.3], s: [.14 + rnd()*.16, .12 + rnd()*.14, .14 + rnd()*.16], g: k % 2})), out = [];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .12) out.push([gauss()*.5, gauss()*.3, gauss()*.5, 0, 1]);
+      else { const b = B[Math.floor(rnd()*6)]; out.push([b.c[0] + gauss()*b.s[0], b.c[1] + gauss()*b.s[1], b.c[2] + gauss()*b.s[2], 0, b.g]); }
+    }
+    return out;
+  },
+  plasma(n){
+    const out = [], T = Array.from({length: 16}, () => norm3([gauss(), gauss(), gauss()])),
+      paths = T.map(d => { const P = [[0, 0, 0]]; let off = [0, 0, 0]; for (let k = 1; k <= 22; k++){ off = off.map(o => o + gauss()*.035); const r = k/22*.95; P.push([d[0]*r + off[0], d[1]*r + off[1], d[2]*r + off[2]]); } return P; });
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .08) out.push([gauss()*.06, gauss()*.06, gauss()*.06, 0, 1]);
+      else if (q < .66){ const P = paths[Math.floor(rnd()*16)], k = Math.floor(rnd()*22), u = rnd(); out.push([0, 1, 2].map(m => P[k][m] + (P[k+1][m] - P[k][m])*u + gauss()*.006).concat([0, 1])); }
+      else { const v = norm3([gauss(), gauss(), gauss()]); out.push([v[0]*.98, v[1]*.98, v[2]*.98, 0, 0]); }
+    }
+    return out;
+  },
+  burst(n){
+    const D = Array.from({length: 90}, () => norm3([gauss(), gauss(), gauss()])), out = [];
+    for (let i = 0; i < n; i++){ const d = D[Math.floor(rnd()*90)], r = .1 + .88*Math.pow(rnd(), .8);
+      out.push([d[0]*r + gauss()*.004, d[1]*r + gauss()*.004, d[2]*r + gauss()*.004, 0, r > .6 ? 0 : 1]); }
+    return out;
+  },
+  fibSphere(n){
+    const out = [], g = Math.PI*(3 - Math.sqrt(5));
+    for (let i = 0; i < n; i++){ const y = 1 - 2*(i + .5)/n, r = Math.sqrt(1 - y*y); out.push([Math.cos(i*g)*r, y, Math.sin(i*g)*r]); }
     return out;
   },
   helix(n){
@@ -634,26 +669,28 @@ function build(){
   seed = seedBase; const raw = shapes[$('shape').value](+$('n').value);
   // el color va pegado al objeto: por altura, o del centro al borde si la figura es plana
   let lo = Infinity, hi = -Infinity; for (const p of raw){ lo = Math.min(lo,p[1]); hi = Math.max(hi,p[1]); }
-  const radial = ['blackHole','galaxy'].includes($('shape').value), flat = radial || hi - lo < .5,
-    key = p => radial ? 1 - Math.min(1, Math.hypot(p[0],p[1],p[2])) : flat ? 1 - Math.hypot(p[0],p[2]) : p[1];
-  if (flat){ lo = Infinity; hi = -Infinity; for (const p of raw){ lo = Math.min(lo,key(p)); hi = Math.max(hi,key(p)); } }
+  const grp = raw.length && raw[0][4] !== undefined, radial = !grp && ['blackHole','galaxy'].includes($('shape').value), flat = !grp && (radial || hi - lo < .5),
+    key = p => grp ? p[4] : radial ? 1 - Math.min(1, Math.hypot(p[0],p[1],p[2])) : flat ? 1 - Math.hypot(p[0],p[2]) : p[1];
+  if (flat || grp){ lo = Infinity; hi = -Infinity; for (const p of raw){ lo = Math.min(lo,key(p)); hi = Math.max(hi,key(p)); } }
   const bk = p => Math.min(NB-1, Math.floor((key(p)-lo)/((hi-lo)||1)*NB));
   raw.sort((p,q) => bk(p)-bk(q)); pts = raw; bks = raw.map(bk);
   FIX = Uint8Array.from(pts, p => p[3] === 1 ? 1 : 0); GX = new Float32Array(pts.length); GY = new Float32Array(pts.length); GR = new Float32Array(pts.length); GA = new Float32Array(pts.length);   // agrupados por color para pintar rápido
 }
 let seedBase = 7;
 const PALETAS = {
-  'Clásico':  {bg:'#000000', tx:'#ffffff', a:'#ffffff', b:'#ffffff'},
-  'Neón':     {bg:'#05010f', tx:'#ffffff', a:'#00f0ff', b:'#ff2bd6'},
-  'Atardecer':{bg:'#12060a', tx:'#ffe8d6', a:'#ffd166', b:'#ff4d6d'},
-  'Hielo':    {bg:'#020b16', tx:'#e6f7ff', a:'#e6f7ff', b:'#4cc9f0'},
-  'Matrix':   {bg:'#000000', tx:'#b6ffb0', a:'#b6ffb0', b:'#00c853'},
-  'Dorado':   {bg:'#0b0803', tx:'#f5deb3', a:'#fff1b8', b:'#d4a017'},
-  'Violeta':  {bg:'#0a0614', tx:'#f3e8ff', a:'#f3e8ff', b:'#9d4edd'},
-  'Halloween':{bg:'#0a0500', tx:'#ffd9a0', a:'#ffb347', b:'#ff5e00'},
-  'Sangre':   {bg:'#0a0002', tx:'#ffd6d6', a:'#ff6b6b', b:'#8b0000'},
-  'USA':      {bg:'#040818', tx:'#ffffff', a:'#ff4155', b:'#2f6bff'},
-  'Navidad':  {bg:'#04100a', tx:'#ffffff', a:'#ff5a5a', b:'#3ddc84'}
+  'Clásico':     {bg:'#000000', tx:'#ffffff', a:'#ffffff', b:'#ffffff'},
+  'Azul':        {bg:'#000000', tx:'#dbe7ff', a:'#8fb4ff', b:'#2f5bff'},
+  'Rojo y azul': {bg:'#000000', tx:'#ffffff', a:'#ff2d3d', b:'#2d6bff'},
+  'Oro y violeta':{bg:'#000000', tx:'#ffe9b0', a:'#ffc83d', b:'#6a4cff'},
+  'Fuego':       {bg:'#060200', tx:'#ffe2b8', a:'#ffd24a', b:'#ff4a1c'},
+  'Hielo':       {bg:'#000308', tx:'#eaf6ff', a:'#ffffff', b:'#6fc3ff'},
+  'Rosa':        {bg:'#05020a', tx:'#ffe3f4', a:'#ff8fd0', b:'#7c5cff'},
+  'Esmeralda':   {bg:'#000805', tx:'#dcffee', a:'#9dffd0', b:'#12b886'},
+  'Cian':        {bg:'#00080b', tx:'#e0ffff', a:'#7cf8ff', b:'#2a7bff'},
+  'Plata':       {bg:'#000000', tx:'#ffffff', a:'#ffffff', b:'#8fa0b8'},
+  'Halloween':   {bg:'#0a0500', tx:'#ffd9a0', a:'#ffb347', b:'#ff5e00'},
+  'Navidad':     {bg:'#04100a', tx:'#ffffff', a:'#ff5a5a', b:'#3ddc84'},
+  'USA':         {bg:'#040818', tx:'#ffffff', a:'#ff4155', b:'#2f6bff'}
 };
 function applyPalette(p){
   $('cbg').value = p.bg; $('ctt').value = p.tx; $('ca').value = p.a; $('cb').value = p.b; $('grad').checked = p.a !== p.b;
@@ -736,7 +773,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',donut:'dona',burger:'hamburguesa',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',gift:'regalo',dice:'dado',coin:'moneda',trophy:'trofeo'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);
@@ -752,7 +789,7 @@ $('rec').onclick = async () => {
     'Texto de abajo: ' + ($('bot').value.trim() || '(sin texto)'),
     ...(sel.value === 'text3d' ? ['Palabra: ' + $('word').value] : []),
     'Brillo: ' + $('b').value + '% | Estrellas de fondo: ' + $('e').value,
-    'Duración: ' + $('r').value + ' s | ' + $('fps').value + ' fps | Versión (semilla): ' + seedBase
+    'Duración: ' + $('r').value + ' s | ' + '30 fps | Versión (semilla): ' + seedBase
   ].join('\n');
   const box = $('pedido'); box.hidden = false; box.value = t; box.rows = t.split('\n').length + 1;
   try { await navigator.clipboard.writeText(t); $('msg').textContent = 'Copiado. Pegámelo en el chat y te mando el video en calidad completa.'; }
