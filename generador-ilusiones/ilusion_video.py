@@ -290,14 +290,15 @@ def _telarana(n, rng):
     return np.array(out)
 
 
-def _texto3d(n, rng, palabra):
-    CW, CH = 1200, 400; txt = (palabra or "USA")[:14]
+
+def _glifos(txt, mw, mh):
+    """Letras a puntos: devuelve (x, y, esBorde) centrado y escalado a mw x mh."""
+    CW, CH = 1200, 400
     ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts", "Poppins-ExtraBold.ttf")
-    fs = 300
     def fuente(sz):
         try: return ImageFont.truetype(ruta, int(sz))
         except OSError: return font(FONTS_B, int(sz))
-    img = Image.new("L", (CW, CH), 0); d = ImageDraw.Draw(img)
+    fs = 300; img = Image.new("L", (CW, CH), 0); d = ImageDraw.Draw(img)
     tw = d.textlength(txt, font=fuente(fs))
     if tw > 1100: fs = fs * 1100 / tw
     d.text((CW / 2, CH / 2 + 15), txt, font=fuente(fs), fill=255, anchor="mm")
@@ -306,15 +307,218 @@ def _texto3d(n, rng, palabra):
     borde = on & ~(sh(3, 0) & sh(-3, 0) & sh(0, 3) & sh(0, -3))
     ys, xs = np.mgrid[0:CH:2, 0:CW:2]; sel = on[::2, ::2]
     px, py, pb = xs[sel], ys[sel], borde[::2, ::2][sel]
-    if not len(px): return np.zeros((n, 3))
-    sc = min(1.9 / max(1, px.max() - px.min()), 1.2 / max(1, py.max() - py.min())); cx, cy = (px.min() + px.max()) / 2, (py.min() + py.max()) / 2
-    T = .11; q = rng.random(n); i = rng.integers(len(px), size=n)
-    bi = np.flatnonzero(pb)
-    if len(bi): ib = bi[rng.integers(len(bi), size=n)]
-    else: ib = i
+    if not len(px): return np.zeros((0, 3))
+    sc = min(mw / max(1, px.max() - px.min()), mh / max(1, py.max() - py.min())); cx, cy = (px.min() + px.max()) / 2, (py.min() + py.max()) / 2
+    return np.c_[(px - cx) * sc, -(py - cy) * sc, pb.astype(float)]
+
+
+def _texto3d(n, rng, palabra):
+    G = _glifos((palabra or "USA")[:14], 1.9, 1.2)
+    if not len(G): return np.zeros((n, 3))
+    T = .11; q = rng.random(n); i = rng.integers(len(G), size=n); bi = np.flatnonzero(G[:, 2] > .5)
+    ib = bi[rng.integers(len(bi), size=n)] if len(bi) else i
     usar_borde = (q >= .68) & (len(bi) > 0); idx = np.where(usar_borde, ib, i)
     z = np.where(usar_borde, (rng.random(n) * 2 - 1) * T, np.where(q < .34, T, -T))
-    return np.c_[(px[idx] - cx) * sc, -(py[idx] - cy) * sc, z]
+    return np.c_[G[idx, 0], G[idx, 1], z]
+
+
+def _joya(n, rng):
+    A = math.pi / 4; v = [[.5 * math.cos(k * A), .32 + .24, .5 * math.sin(k * A)] for k in range(8)]
+    v += [[.95 * math.cos(k * A + A / 2), .24, .95 * math.sin(k * A + A / 2)] for k in range(8)] + [[0, -.8 + .24, 0]]
+    e = []
+    for k in range(8):
+        k1 = (k + 1) % 8; e += [(k, k1), (k, k1), (8 + k, 8 + k1), (k, 8 + k), (k, 8 + (k + 7) % 8), (8 + k, 16), (8 + k, 16)]
+    return _aristas(np.array(v), e, n, rng)
+
+
+def _dona(n, rng):
+    R, G = rng.random, rng.normal; R0, r0, ph = .62, .34, .9; out = []
+    edge = lambda u: .1 * math.pi + .13 * math.sin(9 * u) + .06 * math.sin(17 * u + 1)
+    def T(u, v, k=1.):
+        rr = r0 * k; x, y, z = (R0 + rr * math.cos(v)) * math.cos(u), rr * math.sin(v), (R0 + rr * math.cos(v)) * math.sin(u)
+        return np.array([x, y * math.cos(ph) - z * math.sin(ph), y * math.sin(ph) + z * math.cos(ph)])
+    SP = []
+    for _ in range(70):
+        u = R() * 2 * math.pi; e = edge(u); SP.append((T(u, e + R() * (math.pi - 2 * e), 1.09), _n3(rng.normal(size=3))))
+    for _ in range(n):
+        q = R(); u = R() * 2 * math.pi; e = edge(u)
+        if q < .42: out.append(T(u, R() * 2 * math.pi))
+        elif q < .8: out.append(T(u, e + R() * (math.pi - 2 * e), 1.05))
+        elif q < .87: out.append(T(u, e if R() < .5 else math.pi - e, 1.05))
+        else:
+            c, d = SP[int(R() * len(SP))]; out.append(c + d * (R() * 2 - 1) * .045)
+    return np.array(out)
+
+
+def _hamburguesa(n, rng):
+    R, G = rng.random, rng.normal; out = []; c45 = math.sqrt(.5)
+    seeds = [_n3([G(), abs(G()) + .35, G()]) for _ in range(16)]
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .26 or q >= .87:
+            v = _n3([G(), abs(G()), G()]); out.append([v[0] * .95, .22 + v[1] * .62, v[2] * .95])
+        elif q < .32:
+            s_ = seeds[int(R() * 16)]; out.append([s_[0] * .95 + G() * .03, .22 + s_[1] * .62 + G() * .012, s_[2] * .95 + G() * .012])
+        elif q < .46:
+            r = .72 + R() * .3; w = 1 + .06 * math.sin(14 * a); out.append([r * w * math.cos(a), .07 + .04 * math.sin(7 * a) + G() * .006, r * w * math.sin(a)])
+        elif q < .55:
+            u, v = R() * 2 - 1, R() * 2 - 1
+            out.append([.75 * (u * c45 - v * c45), -.04 - .16 * max(0., max(abs(u), abs(v)) - .7) / .3, .75 * (u * c45 + v * c45)])
+        elif q < .67: out.append([.92 * math.cos(a), -.32 + R() * .2, .92 * math.sin(a)])
+        elif q < .72:
+            r = math.sqrt(R()) * .9; out.append([r * math.cos(a), -.12, r * math.sin(a)])
+        elif q < .84: out.append([.94 * math.cos(a), -.7 + R() * .27, .94 * math.sin(a)])
+        else:
+            r = math.sqrt(R()) * .93; out.append([r * math.cos(a), -.7, r * math.sin(a)])
+    out = np.array(out); out[:, 1] -= .07
+    return out
+
+
+def _bandera(n, rng):
+    R, G = rng.random, rng.normal; out = []; W0, H0 = .95, .5; cy0 = H0 - .538
+    def P(x, y): return [x, y + .035 * ((x + W0) / (2 * W0)) * math.sin(4.5 * x + 1) + .23, .14 * ((x + W0) / (2 * W0)) * math.sin(4.5 * x)]
+    stars = [[-W0 + (.1267 if r % 2 else .0633) + c * .1267, H0 - .0538 * (r + 1)] for r in range(9) for c in range(5 if r % 2 else 6)]
+    for _ in range(n):
+        q = R()
+        if q < .06: out.append([-W0 - .02 + G() * .004, -.98 + R() * 1.5 + .23, G() * .006]); continue
+        if q < .26: out.append(P(-W0 + R() * .76, cy0 + R() * .538)); continue
+        if q < .42:
+            st = stars[int(R() * len(stars))]; a = R() * 2 * math.pi; r = math.sqrt(R()) * .016; out.append(P(st[0] + r * math.cos(a), st[1] + r * math.sin(a))); continue
+        for _g in range(80):
+            x = -W0 + R() * 2 * W0; y = -H0 + R() * 2 * H0
+            if x < -W0 + .76 and y > cy0: continue
+            if int((H0 - y) * 13) % 2 == 0 or R() < .12: out.append(P(x, y)); break
+    return np.array(out)
+
+
+def _muneco(n, rng):
+    R, G = rng.random, rng.normal; out = []; S = [(-.62, .5), (.05, .36), (.56, .25)]
+    def pt(c, r): v = _n3(rng.normal(size=3)); return [v[0] * r, c + v[1] * r, v[2] * r]
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .64:
+            u = R(); c, r = S[0 if u < .5 else 1 if u < .8 else 2]; out.append(pt(c, r))
+        elif q < .68:
+            t = R(); r = .05 * (1 - t); out.append([r * math.cos(a), .56 + r * math.sin(a), .24 + t * .38])
+        elif q < .72:
+            sx = -1 if R() < .5 else 1; out.append([sx * .09 + G() * .012, .64 + G() * .012, .235 + G() * .006])
+        elif q < .75:
+            t = -.9 + int(R() * 5) * .45; out.append([.11 * t + G() * .006, .46 + .035 * t * t + G() * .006, .235 + G() * .005])
+        elif q < .79: out.append([G() * .012, .14 - int(R() * 3) * .15 + G() * .012, .34 + G() * .006])
+        elif q < .87:
+            if R() < .6: out.append([.2 * math.cos(a), .8 + R() * .22, .2 * math.sin(a)])
+            else:
+                r = math.sqrt(R()) * .34; out.append([r * math.cos(a), .78, r * math.sin(a)])
+        elif q < .92: out.append([.275 * math.cos(a), .38 + G() * .015, .275 * math.sin(a)])
+        else:
+            sx = -1 if R() < .5 else 1; t = R(); out.append([sx * (.33 + t * .55), .1 + t * .32 + G() * .006, G() * .006])
+    out = np.array(out); out[:, 1] += .05
+    return out
+
+
+def _baston(n, rng):
+    R = rng.random; L1, L2, L3 = 1.3, math.pi * .25, .2; L = L1 + L2 + L3; out = []
+    def C(s):
+        if s < L1: return (0., -.9 + s), (0., 1.)
+        if s < L1 + L2:
+            t = math.pi - (s - L1) / .25; return (.25 + .25 * math.cos(t), .4 + .25 * math.sin(t)), (math.sin(t), -math.cos(t))
+        return (.5, .4 - (s - L1 - L2)), (0., -1.)
+    for _ in range(n * 60):
+        if len(out) >= n: break
+        s = R() * L; psi = R() * 2 * math.pi; c, T = C(s); P = (-T[1], T[0]); ph = (s * 3.4 + psi / (2 * math.pi)) % 1
+        if ph > .5 and R() > .12: continue
+        out.append([c[0] + .09 * math.cos(psi) * P[0] - .25, c[1] + .09 * math.cos(psi) * P[1] + .13, .09 * math.sin(psi)])
+    return np.array(out)
+
+
+def _regalo(n, rng):
+    R, G = rng.random, rng.normal; H = .7; out = []
+    ed = []
+    for x in (-1, 1):
+        for y in (-1, 1):
+            for z in (-1, 1):
+                p = [x, y, z]
+                for k in range(3):
+                    if p[k] < 0: q_ = list(p); q_[k] = 1; ed.append((np.array(p, float), np.array(q_, float)))
+    for _ in range(n):
+        q = R()
+        if q < .24:
+            p, r = ed[int(R() * 12)]; out.append((p + (r - p) * R()) * H)
+        elif q < .42:
+            k = int(R() * 3); p = [0., 0., 0.]; p[k] = -1 if R() < .5 else 1; p[(k + 1) % 3] = R() * 2 - 1; p[(k + 2) % 3] = R() * 2 - 1; out.append(np.array(p) * H)
+        elif q < .64:
+            f = int(R() * 4); e = (-.14 if R() < .5 else .14) * H; t = (R() * 2 - 1) * H
+            out.append([(1 if f else -1) * H, t, e] if f < 2 else [e, t, (1 if f == 2 else -1) * H])
+        elif q < .74:
+            e = (-.14 if R() < .5 else .14) * H; t = (R() * 2 - 1) * H; out.append([e, H * 1.004, t] if R() < .5 else [t, H * 1.004, e])
+        elif q < .94:
+            A = int(R() * 4) * math.pi / 2 + math.pi / 4; t = R() * 2 * math.pi; d = .26 + .24 * math.cos(t)
+            out.append([d * math.cos(A) + G() * .006, H + .14 + .17 * math.sin(t), d * math.sin(A) + G() * .006])
+        else:
+            v = _n3(rng.normal(size=3)); out.append([v[0] * .09, H + .09 + v[1] * .09, v[2] * .09])
+    out = np.array(out, dtype=float); out[:, 1] -= .1
+    return out
+
+
+def _dado(n, rng):
+    R = rng.random; H = .7; out = []; ed = []
+    F = [(2, 1, 1), (2, -1, 6), (0, 1, 3), (0, -1, 4), (1, 1, 2), (1, -1, 5)]
+    LY = {1: [(0, 0)], 2: [(-1, -1), (1, 1)], 3: [(-1, -1), (0, 0), (1, 1)], 4: [(-1, -1), (1, -1), (-1, 1), (1, 1)],
+          5: [(-1, -1), (1, -1), (0, 0), (-1, 1), (1, 1)], 6: [(-1, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (1, 1)]}
+    pips = [(k, s_, u * .4, v * .4) for k, s_, c in F for u, v in LY[c]]
+    for x in (-1, 1):
+        for y in (-1, 1):
+            for z in (-1, 1):
+                p = [x, y, z]
+                for k in range(3):
+                    if p[k] < 0: q_ = list(p); q_[k] = 1; ed.append((np.array(p, float), np.array(q_, float)))
+    for _ in range(n):
+        q = R()
+        if q < .22:
+            p, r = ed[int(R() * 12)]; out.append((p + (r - p) * R()) * H)
+        elif q < .5:
+            k = int(R() * 3); p = [0., 0., 0.]; p[k] = -1 if R() < .5 else 1; p[(k + 1) % 3] = R() * 2 - 1; p[(k + 2) % 3] = R() * 2 - 1; out.append(np.array(p) * H)
+        else:
+            k, s_, u, v = pips[int(R() * len(pips))]; r = math.sqrt(R()) * .11; a = R() * 2 * math.pi; p = [0., 0., 0.]
+            p[k] = s_ * H * 1.004; p[(k + 1) % 3] = u + r * math.cos(a); p[(k + 2) % 3] = v + r * math.sin(a); out.append(p)
+    return np.array(out, dtype=float)
+
+
+def _moneda(n, rng):
+    R, G = rng.random, rng.normal; out = []; Gl = _glifos("$", .8, 1.15); GE = Gl[Gl[:, 2] > .5] if len(Gl) else Gl
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi; f = 1 if R() < .5 else -1
+        if q < .22:
+            while True:
+                b = R() * 2 * math.pi
+                if math.sin(60 * b) >= -.2: break
+            out.append([.95 * math.cos(b), .95 * math.sin(b), (R() * 2 - 1) * .045])
+        elif q < .34: out.append([.88 * math.cos(a) + G() * .003, .88 * math.sin(a) + G() * .003, f * .055])
+        elif q < .42: out.append([.78 * math.cos(a), .78 * math.sin(a), f * .05])
+        elif q < .72 and len(Gl):
+            pnt = GE[int(R() * len(GE))] if (R() < .35 and len(GE)) else Gl[int(R() * len(Gl))]; out.append([pnt[0], pnt[1], f * .07])
+        else:
+            r = math.sqrt(R()) * .88; out.append([r * math.cos(a), r * math.sin(a), f * .045])
+    return np.array(out)
+
+
+def _trofeo(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    PR = [(0, -1), (.6, -1), (.6, -.9), (.45, -.9), (.45, -.8), (.16, -.72), (.16, -.4), (.28, -.34), (.28, -.26), (.16, -.2), (.2, -.1), (.5, .15), (.64, .5), (.66, .75)]
+    cum = [0.]
+    for k in range(1, len(PR)): cum.append(cum[-1] + math.hypot(PR[k][0] - PR[k - 1][0], PR[k][1] - PR[k - 1][1]))
+    tot = cum[-1]
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .74:
+            u = R() * tot; k = 1
+            while cum[k] < u: k += 1
+            t = (u - cum[k - 1]) / (cum[k] - cum[k - 1]); r = PR[k - 1][0] + (PR[k][0] - PR[k - 1][0]) * t; y = PR[k - 1][1] + (PR[k][1] - PR[k - 1][1]) * t
+            out.append([r * math.cos(a), y + .12, r * math.sin(a)])
+        elif q < .8: out.append([.66 * math.cos(a), .87, .66 * math.sin(a)])
+        else:
+            sx = -1 if R() < .5 else 1; t = (R() * 2 - 1) * math.pi / 2; out.append([sx * (.58 + .3 * math.cos(t)) + G() * .008, .45 + .3 * math.sin(t), G() * .008])
+    return np.array(out)
 
 
 def formas(nombre, n, rng, palabra="USA"):
@@ -364,19 +568,6 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "piramide":
         return _aristas([[-.7, -.8, -.7], [.7, -.8, -.7], [.7, -.8, .7], [-.7, -.8, .7], [0, .95, 0]],
                        [(0, 1), (1, 2), (2, 3), (3, 0), (0, 4), (1, 4), (2, 4), (3, 4)], n, rng)
-    if nombre == "diamante":
-        v = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) * .95
-        return _aristas(v, [(i, j) for i in range(6) for j in range(i + 1, 6) if j != (i ^ 1)], n, rng)
-    if nombre == "resorte":
-        u = rng.random(n); a = u * 6 * 2 * math.pi
-        return np.c_[np.cos(a) * .6, u * 1.8 - .9, np.sin(a) * .6]
-    if nombre == "nudo":
-        t = rng.random(n) * 2 * math.pi; r = lambda: (rng.random(n) - .5) * .05
-        return np.c_[(np.sin(t) + 2 * np.sin(2 * t)) / 3.2 + r(), (np.cos(t) - 2 * np.cos(2 * t)) / 3.2 + r(),
-                     -np.sin(3 * t) / 3.2 + r()]
-    if nombre == "mobius":
-        u = rng.random(n) * 2 * math.pi; v = (rng.random(n) * 2 - 1) * .35; R = .62
-        return np.c_[(R + v * np.cos(u / 2)) * np.cos(u), v * np.sin(u / 2) * 1.2, (R + v * np.cos(u / 2)) * np.sin(u)]
     if nombre == "cono_invertido":
         q = formas("cono", n, rng); q[:, 1] *= -1
         return q
@@ -398,58 +589,37 @@ def formas(nombre, n, rng, palabra="USA"):
         disco = np.c_[r * np.cos(a), P(m) * .03 * (1.2 - r), r * np.sin(a)]
         m = cnt(.96, 1.01); halo = P(m * 3).reshape(m, 3) * [.5, .18, .5]
         return np.r_[bulbo, nucleo, barra, brazos, cumulos, disco, halo]
-    if nombre == "nudo_toroidal":
-        t = rng.random(n) * 2 * math.pi; c = 2 + np.cos(3 * t); j = lambda: rng.normal(size=n) * .03
-        return np.c_[c * np.cos(2 * t) / 3.1 + j(), np.sin(3 * t) * 1.5 / 3.1 + j(), c * np.sin(2 * t) / 3.1 + j()]
-    if nombre == "icosaedro":
-        f = (1 + 5 ** .5) / 2; v = []
-        for a in (-1, 1):
-            for b in (-f, f):
-                v += [[0, a, b], [a, b, 0], [b, 0, a]]
-        v = np.array(v, dtype=float)
-        e = [(i, j) for i in range(12) for j in range(i + 1, 12) if abs(((v[i] - v[j]) ** 2).sum() - 4) < .01]
-        return _aristas(v * (.95 / math.sqrt(1 + f * f)), e, n, rng)
     if nombre == "tornado":
         y = rng.random(n) * 2 - 1; h = (y + 1) / 2
         rad = (.1 + .72 * h ** 1.6) * (1 + rng.normal(size=n) * .04)
         ang = y * 5 + rng.integers(4, size=n) * math.pi / 2 + rng.normal(size=n) * .07
         return np.c_[np.cos(ang) * rad, y * .95, np.sin(ang) * rad]
-    if nombre == "corazon":
-        t = rng.random(n) * 2 * math.pi; c = rng.random(n) * 2 - 1; s = np.sqrt(1 - c * c)
-        hx = 16 * np.sin(t) ** 3; hy = 13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t)
-        return np.c_[hx * s / 17, (hy + 2.5) * s / 15, c * .5]
-    if nombre == "ondas":
-        r = np.sqrt(rng.random(n)); a = rng.random(n) * 2 * math.pi
-        return np.c_[np.cos(a) * r, .2 * np.cos(r * 15) * (1 - r * .55), np.sin(a) * r]
-    if nombre == "esfera_fibonacci":
-        i = np.arange(n); y = 1 - 2 * (i + .5) / n; r = np.sqrt(1 - y * y); g = math.pi * (3 - 5 ** .5)
-        return np.c_[np.cos(i * g) * r, y, np.sin(i * g) * r]
     if nombre == "saturno":
         nb = int(n * .42); v = rng.normal(size=(nb, 3)); v = v / np.linalg.norm(v, axis=1, keepdims=True) * .5
         m = n - nb; r = .72 + .36 * rng.random(m); r[(r > .92) & (r < .96)] += .04   # hueco entre anillos
         a = rng.random(m) * 2 * math.pi; px = r * np.cos(a); t = .4
         return np.r_[v, np.c_[px * math.cos(t), px * math.sin(t) + rng.normal(size=m) * .004, r * np.sin(a)]]
-    if nombre == "atomo":
-        nn = int(n * .1); m = n - nn; k = rng.integers(3, size=m)
-        t = np.where(rng.random(m) < .18, k * 2.1 + rng.normal(size=m) * .1, rng.random(m) * 2 * math.pi)   # electrones: racimos
-        x = np.cos(t); z = .42 * np.sin(t); phi = math.pi / 3; y0 = -z * math.sin(phi); z0 = z * math.cos(phi); psi = k * math.pi / 3
-        j = lambda: rng.normal(size=m) * .008
-        orb = np.c_[x * np.cos(psi) + z0 * np.sin(psi) + j(), y0 + j(), -x * np.sin(psi) + z0 * np.cos(psi) + j()]
-        return np.r_[rng.normal(size=(nn, 3)) * .07, orb]
     if nombre == "agujero_negro":
-        q = rng.random(n); P = lambda m: rng.normal(size=m)
-        nd = int((q < .58).sum()); r = .34 + .66 * rng.random(nd * 4) ** 1.5; aa = rng.random(nd * 4) * 2 * math.pi
-        w = (.55 + .45 * np.cos(2 * (aa - 3.2 * np.log(r / .34)))) * (.78 + .22 * np.cos(r * 75))
-        k = rng.random(nd * 4) < w; r, aa = r[k][:nd], aa[k][:nd]                 # disco con brazos en espiral y anillos finos
-        disco = np.c_[r * np.cos(aa), P(len(r)) * .01 * (1 + 2.5 * r ** 2), r * np.sin(aa)]
-        m = int(((q >= .58) & (q < .70)).sum()); a = rng.random(m) * 2 * math.pi; ri = .33 + np.abs(P(m)) * .025
-        interior = np.c_[ri * np.cos(a), P(m) * .006, ri * np.sin(a)]                # borde interior ardiente
-        m = int(((q >= .70) & (q < .84)).sum()); sf = P(m * 3).reshape(m, 3); sf = sf / np.linalg.norm(sf, axis=1, keepdims=True) * .44
-        m = int(((q >= .84) & (q < .94)).sum()); sg = np.where(rng.random(m) < .5, 1, -1); h = .3 + rng.random(m) * .85
-        wj = .008 + .03 * h ** 2; chorros = np.c_[P(m) * wj, sg * h, P(m) * wj]         # chorros relativistas
-        m = int((q >= .94).sum()); rg = .7 + rng.random(m) * .4; ag = rng.random(m) * 2 * math.pi
-        gas = np.c_[rg * np.cos(ag), P(m) * .06 * (rg - .5), rg * np.sin(ag)]
-        return np.r_[disco, interior, sf, chorros, gas]
+        # disco de accrecion fino (gira) + luz curvada y anillo de fotones fijos en pantalla (4ta columna = 1)
+        R, G = rng.random, rng.normal; out = []
+        for _ in range(n):
+            q = R(); a = R() * 2 * math.pi
+            if q < .6:
+                for _t in range(60):
+                    r = .52 + .62 * R() ** 1.9; aa = R() * 2 * math.pi
+                    w = .5 + .5 * math.cos(3 * (aa - 4 * math.log(r / .52))); w = w * w * .8 + .2
+                    if R() <= w: break
+                out.append([r * math.cos(aa), G() * .006 * (1 + 3 * r * r), r * math.sin(aa), 0])
+            elif q < .67:
+                r = .5 + abs(G()) * .012; out.append([r * math.cos(a), G() * .004, r * math.sin(a), 0])
+            elif q < .77:
+                r = .4 + G() * .0035; out.append([r * math.cos(a), r * math.sin(a), 0, 1])
+            elif q < .95:
+                ph = (1 if R() < .5 else -1) * math.pi / 2 + G() * .5; r = .41 + R() ** 1.6 * .2
+                out.append([r * math.cos(ph), r * math.sin(ph), 0, 1])
+            else:
+                r = .9 + R() * .35; out.append([r * math.cos(a), G() * .03 * (r - .5), r * math.sin(a), 0])
+        return np.array(out)
     if nombre == "calabaza":
         ns, ng, ne, nf = int(n * .05), int(n * .04), int(n * .06), int(n * .30); nb = n - ns - ng - ne - nf
         t = rng.random(ns); a2 = rng.random(ns) * 2 * math.pi
@@ -477,40 +647,6 @@ def formas(nombre, n, rng, palabra="USA"):
         piezas = [vidrio, borde, pila, hilo, arriba]; cortes = [.5, .62, .84, .9]
         idx = np.digitize(u, cortes)
         return np.array([piezas[idx[i]][i] for i in range(n)])
-    if nombre == "merkaba":
-        T = np.array([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=float)
-        e3 = np.array([1, 1, 1]) / 3 ** .5; e1 = np.array([1, -1, 0]) / 2 ** .5; e2 = np.array([1, 1, -2]) / 6 ** .5
-        v = np.r_[T, -T] @ np.c_[e1, e3, e2] * .55    # punta hacia arriba
-        e = [(g + i, g + j) for g in (0, 4) for i in range(4) for j in range(i + 1, 4)]
-        return _aristas(v, e, n, rng)
-    if nombre == "infinito":
-        t = rng.random(n) * 2 * math.pi; d = 1 + np.sin(t) ** 2; j = lambda: rng.normal(size=n) * .018
-        return np.c_[np.cos(t) / d + j(), np.sin(t) * np.cos(t) / d * 1.6 + j(), .35 * np.sin(t) + j()]
-    if nombre == "girasol":
-        i = np.arange(n); r = np.sqrt((i + .5) / n); a = i * 2.39996323
-        return np.c_[r * np.cos(a), .4 * r * r - .2, r * np.sin(a)]
-    if nombre == "ojo":
-        R = .95; P = lambda al, ph: np.c_[R * np.sin(al) * np.cos(ph), R * np.sin(al) * np.sin(ph), R * np.cos(al)]   # +z mira al frente
-        q = rng.random(n); cnt = lambda lo, hi: int(((q >= lo) & (q < hi)).sum())
-        m = cnt(0, .36); al = np.arccos(1 - 2 * rng.random(m * 3)); al = al[al >= .5][:m]                    # esclerotica
-        esc = P(al, rng.random(len(al)) * 2 * math.pi)
-        m = cnt(.36, .46); borde = P(.45 + rng.normal(size=m) * .004, rng.random(m) * 2 * math.pi)              # borde del iris
-        m = cnt(.46, .84); fibras = P(.17 + rng.random(m) * .27, rng.integers(40, size=m) * 2 * math.pi / 40 + rng.normal(size=m) * .012)
-        m = cnt(.84, .92); pupila = P(.165 + rng.normal(size=m) * .004, rng.random(m) * 2 * math.pi)          # borde de la pupila
-        m = cnt(.92, 1.01); t = rng.random(m) * 2 * math.pi; venas = P(.5 + rng.random(m) * 1.6 + .15 * np.sin(t * 3), t)
-        return np.r_[esc, borde, fibras, pupila, venas]
-    if nombre == "loto":
-        # 3 coronas de petalos: las de afuera abiertas y caidas, las del medio a 45 grados, las de adentro paradas y curvadas al centro
-        K = np.array([13, 8, 5]); AL = np.radians([14, 42, 78]); LL = np.array([1, .9, .65]); B = np.array([.10, .08, .05])
-        BEND = np.array([.18, .05, 0]); CURL = np.array([0, 0, .35])
-        ne = int(n * .05); m = n - ne; q = rng.random(m); l = np.where(q < .45, 0, np.where(q < .8, 1, 2))
-        k = (rng.random(m) * K[l]).astype(int); t = rng.random(m) ** .9; sw = rng.random(m) * 2 - 1; s_ = t * LL[l]
-        hw = .24 * LL[l] * np.sin(math.pi * t ** .75) ** .9
-        rad = B[l] + s_ * np.cos(AL[l]) - CURL[l] * s_ ** 2; h = s_ * np.sin(AL[l]) - BEND[l] * s_ ** 2 + .9 * (sw * hw) ** 2; across = sw * hw
-        az = k * 2 * math.pi / K[l] + l * .35; c, sn = np.cos(az), np.sin(az)
-        petalos = np.c_[c * rad - sn * across, -.35 + h, sn * rad + c * across]
-        est = np.c_[rng.normal(size=ne) * .05, -.1 + rng.random(ne) * .3, rng.normal(size=ne) * .05]
-        return np.r_[petalos, est]
     if nombre == "luna":
         nz = lambda v: v / np.linalg.norm(v, axis=-1, keepdims=True)
         cr = nz(rng.normal(size=(18, 3))); rh = .07 + rng.random(18) * .2
@@ -526,21 +662,10 @@ def formas(nombre, n, rng, palabra="USA"):
         f = 1 / (3.2 - V[:, 3]); pr = V[:, :3] * f[:, None]; pr = pr / np.abs(pr).max() * .7
         e = [(i, i | (1 << b)) for i in range(16) for b in range(4) if not (i >> b) & 1]
         return _aristas(pr, e, n, rng)
-    if nombre == "giroscopio":
-        nc = int(n * .05); m = n - nc; t = rng.random(m) * 2 * math.pi; g = rng.integers(3, size=m)
-        Rr = np.array([1, .82, .64])[g]; c = np.cos(t) * Rr; s_ = np.sin(t) * Rr; z0 = np.zeros(m)
-        anillos = np.where((g == 0)[:, None], np.c_[z0, c, s_], np.where((g == 1)[:, None], np.c_[c, z0, s_], np.c_[c, s_, z0]))
-        return np.r_[anillos + rng.normal(size=(m, 3)) * .008, rng.normal(size=(nc, 3)) * .1]
     if nombre == "bobina":
         u = rng.random(n) * 2 * math.pi; v = 14 * u + np.where(rng.random(n) < .5, 0, math.pi); R, r = .7, .28
         j = lambda: rng.normal(size=n) * .006
         return np.c_[(R + r * np.cos(v)) * np.cos(u) + j(), r * np.sin(v) + j(), (R + r * np.cos(v)) * np.sin(u) + j()]
-    if nombre == "nautilo":
-        TM = 5 * math.pi; K = .28; A = math.exp(K * TM) - 1; Rf = lambda t: .12 * np.exp(.14 * t)
-        sep = rng.random(n) < .18
-        t = np.where(sep, rng.integers(28, size=n) * .56, np.log(1 + rng.random(n) * A) / K); R = Rf(t); rho = .3 * R
-        psi = rng.random(n) * 2 * math.pi; d = np.where(sep, np.sqrt(rng.random(n)), 1.); rd = rho * d
-        return np.c_[(R * np.cos(t) + rd * np.cos(psi) * np.cos(t)) / 1.5 + .1, (R * np.sin(t) + rd * np.cos(psi) * np.sin(t)) / 1.5, rd * np.sin(psi) / 1.5]
     if nombre == "sierpinski":
         V = np.array([[0, 1.04, 0]] + [[.98 * math.cos(math.radians(a)), -.35, .98 * math.sin(math.radians(a))] for a in (90, 210, 330)]) * .88
         pick = rng.integers(4, size=n + 30); p = np.zeros(3); out = np.empty((n + 30, 3))
@@ -559,6 +684,16 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "calavera": return _calavera(n, rng)
     if nombre == "telarana": return _telarana(n, rng)
     if nombre == "texto3d": return _texto3d(n, rng, palabra)
+    if nombre == "joya": return _joya(n, rng)
+    if nombre == "dona": return _dona(n, rng)
+    if nombre == "hamburguesa": return _hamburguesa(n, rng)
+    if nombre == "bandera": return _bandera(n, rng)
+    if nombre == "muneco_nieve": return _muneco(n, rng)
+    if nombre == "baston_caramelo": return _baston(n, rng)
+    if nombre == "regalo": return _regalo(n, rng)
+    if nombre == "dado": return _dado(n, rng)
+    if nombre == "moneda": return _moneda(n, rng)
+    if nombre == "trofeo": return _trofeo(n, rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -585,12 +720,10 @@ def capa_texto(arriba, abajo):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "diamante", "resorte", "nudo", "mobius",
-                                                  "cono_invertido", "galaxia", "nudo_toroidal", "icosaedro", "tornado", "corazon", "ondas", "esfera_fibonacci",
-                                                  "saturno", "atomo", "agujero_negro", "calabaza", "reloj_arena", "merkaba", "infinito", "girasol",
-                                                  "ojo", "loto", "luna", "teseracto", "giroscopio", "bobina", "nautilo", "sierpinski",
-                                                  "futbol_americano", "baloncesto", "futbol", "ovni", "cohete", "estrella", "copo",
-                                                  "arbol_navidad", "fantasma", "calavera", "telarana", "texto3d"])
+    ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "cono_invertido", "galaxia", "tornado", "saturno", "agujero_negro",
+                                                  "calabaza", "reloj_arena", "luna", "teseracto", "bobina", "sierpinski", "futbol_americano", "baloncesto", "futbol", "ovni",
+                                                  "cohete", "estrella", "copo", "arbol_navidad", "fantasma", "calavera", "telarana", "texto3d",
+                                                  "joya", "dona", "hamburguesa", "bandera", "muneco_nieve", "baston_caramelo", "regalo", "dado", "moneda", "trofeo"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -619,6 +752,8 @@ def main():
 
     rng = np.random.default_rng(a.semilla)
     pts = formas(a.forma, a.puntos, rng, a.palabra)
+    fijo = pts[:, 3] > .5 if pts.shape[1] == 4 else np.zeros(len(pts), dtype=bool)   # puntos fijos en pantalla (no giran)
+    pts = pts[:, :3]
     texto = capa_texto(a.arriba, a.abajo)
     pbg, ptx, pa, pb = PALETAS[a.paleta]
     c_bg, c_tx = rgb(a.fondo or pbg), rgb(a.texto or ptx)
@@ -654,8 +789,8 @@ def main():
         ang = sgn * 2 * math.pi * vueltas * i / total
         ca, sa = math.cos(ang), math.sin(ang)
         x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
-        x1 = x * ca + z * sa; z1 = -x * sa + z * ca
-        y2 = y * ct - z1 * st; z2 = y * st + z1 * ct
+        x1 = np.where(fijo, x, x * ca + z * sa); z1 = -x * sa + z * ca
+        y2 = np.where(fijo, y, y * ct - z1 * st); z2 = np.where(fijo, 0., y * st + z1 * ct)
         img = Image.new("RGB", (bw * SS, bh * SS), (0, 0, 0)); d = ImageDraw.Draw(img)
         mk = Image.new("L", (bw * SS, bh * SS), 0); dm = ImageDraw.Draw(mk)
         px = (W / 2 + x1 * R - box[0]) * SS; py = (cy - y2 * R - box[1]) * SS
