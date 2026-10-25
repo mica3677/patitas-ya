@@ -86,6 +86,13 @@
     <option value="nebula">Nebulosa</option>
     <option value="plasma">Esfera de plasma</option>
     <option value="burst">Explosión de estrellas</option>
+        <option value="halves">Esfera partida en dos</option>
+    <option value="bowls">Cuencos cruzados</option>
+    <option value="cutplanet">Planeta cortado (capas)</option>
+    <option value="slicedTorus">Toro cortado</option>
+    <option value="cubeSphere">Esfera dentro de un cubo</option>
+    <option value="voxels">Cubo de cubitos (ajedrez)</option>
+    <option value="nestedCones">Conos anidados</option>
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
@@ -641,15 +648,77 @@ const shapes = {
     for (let i = 0; i < n; i++){ const y = 1 - 2*(i + .5)/n, r = Math.sqrt(1 - y*y); out.push([Math.cos(i*g)*r, y, Math.sin(i*g)*r]); }
     return out;
   },
-  helix(n){
-    const out = [];
-    for (let i = 0; i < n; i++){ const s = i%3, y = rnd()*2-1, a = y*3*Math.PI;
-      if (s < 2) out.push([Math.cos(a+s*Math.PI)*.5, y, Math.sin(a+s*Math.PI)*.5]);
-      else { const b = Math.round(y*8)/8, ab = b*3*Math.PI, u = rnd()*2-1; // peldaños
-        out.push([Math.cos(ab)*.5*u, b, Math.sin(ab)*.5*u]); }
+  halves(n){       // esfera partida en dos mitades separadas, cada una de un color
+    const out = [], R = .85, G = .12;
+    for (let i = 0; i < n; i++){ const q = rnd(), s = rnd() < .5 ? -1 : 1, a = rnd()*2*Math.PI;
+      if (q < .6){ const v = norm3([gauss(), gauss(), gauss()]), l = v[0] < 0; out.push([v[0]*R + (l ? -G : G), v[1]*R, v[2]*R, 0, l ? 1 : 0]); }
+      else if (q < .82){ const r = Math.sqrt(rnd())*R; out.push([s*G, r*Math.cos(a), r*Math.sin(a), 0, s < 0 ? 1 : 0]); }     // cara plana del corte
+      else out.push([s*G, R*Math.cos(a), R*Math.sin(a), 0, s < 0 ? 1 : 0]);                                                      // borde
     }
     return out;
-  }
+  },
+  bowls(n){        // dos cuencos que se atraviesan: uno de cada color
+    const out = [], R = .8, C = .28;
+    for (let i = 0; i < n; i++){ const q = rnd(), s = rnd() < .5 ? 1 : -1, a = rnd()*2*Math.PI;
+      if (q < .84){ const v = norm3([gauss(), gauss(), gauss()]); out.push([Math.abs(v[0])*s*R - s*C, v[1]*R, v[2]*R, 0, s === 1 ? 1 : 0]); }
+      else out.push([-s*C, R*Math.cos(a), R*Math.sin(a), 0, s === 1 ? 1 : 0]);
+    }
+    return out;
+  },
+  cutplanet(n){    // planeta cortado: capas de afuera hacia adentro en dos colores
+    const out = [], SH = [[.95, 1], [.72, 0], [.5, 1]], cut = p => p[0] > 0 && p[1] > 0 && p[2] > 0;
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .6){ let p, s; do { const v = norm3([gauss(), gauss(), gauss()]); s = SH[Math.floor(rnd()*3)]; p = v.map(c => c*s[0]); } while (cut(p)); out.push([...p, 0, s[1]]); }
+      else if (q < .9){ const k = Math.floor(rnd()*3), r = Math.sqrt(rnd())*.95, t = rnd()*Math.PI/2, p = [0, 0, 0]; p[(k+1) % 3] = r*Math.cos(t); p[(k+2) % 3] = r*Math.sin(t);
+        out.push([...p, 0, r > .72 ? 1 : r > .5 ? 0 : r > .25 ? 1 : 0]); }                                                                    // caras del corte
+      else { const v = norm3([gauss(), gauss(), gauss()]), r = .25*Math.cbrt(rnd()); const p = v.map(c => c*r); if (cut(p)){ i--; continue; } out.push([...p, 0, 0]); }   // núcleo
+    }
+    return out;
+  },
+  slicedTorus(n){  // dona con un cuarto cortado: afuera un color, las caras del corte otro
+    const out = [], R0 = .65, r0 = .3, P = (u, rr, v) => [(R0 + rr*Math.cos(v))*Math.cos(u), rr*Math.sin(v), (R0 + rr*Math.cos(v))*Math.sin(u)];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .62) out.push([...P(Math.PI/2 + rnd()*1.5*Math.PI, r0, rnd()*2*Math.PI), 0, 1]);
+      else out.push([...P(rnd() < .5 ? 0 : Math.PI/2, Math.sqrt(rnd())*r0, rnd()*2*Math.PI), 0, 0]);
+    }
+    return out;
+  },
+  cubeSphere(n){   // esfera adentro de un cubo
+    const out = [], H = .66, ed = [];
+    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]){ const p = [x, y, z]; for (let k = 0; k < 3; k++) if (p[k] < 0){ const q = [...p]; q[k] = 1; ed.push([p, q]); } }
+    for (let i = 0; i < n; i++){ const q = rnd();
+      if (q < .26){ const [a, b] = ed[Math.floor(rnd()*12)], u = rnd(); out.push([0, 1, 2].map(k => (a[k] + (b[k] - a[k])*u)*H).concat([0, 1])); }
+      else if (q < .34){ const k = Math.floor(rnd()*3), p = [0, 0, 0]; p[k] = rnd() < .5 ? -H : H; p[(k+1) % 3] = (rnd()*2 - 1)*H; p[(k+2) % 3] = (rnd()*2 - 1)*H; out.push([...p, 0, 1]); }
+      else { const v = norm3([gauss(), gauss(), gauss()]); out.push([v[0]*.42, v[1]*.42, v[2]*.42, 0, 0]); }
+    }
+    return out;
+  },
+  voxels(n){       // 27 cubitos, alternando dos colores como un tablero
+    const out = [], S = .56, h = .2;
+    for (let i = 0; i < n; i++){ const c = [0, 1, 2].map(() => Math.floor(rnd()*3) - 1), g = (((c[0] + c[1] + c[2]) % 2) + 2) % 2, k = Math.floor(rnd()*3); let p = [0, 0, 0];
+      if (rnd() < .2){ p[k] = (rnd() < .5 ? -1 : 1)*h; p[(k+1) % 3] = (rnd()*2 - 1)*h; p[(k+2) % 3] = (rnd()*2 - 1)*h; }
+      else { p = [(rnd() < .5 ? -1 : 1)*h, (rnd() < .5 ? -1 : 1)*h, (rnd() < .5 ? -1 : 1)*h]; p[k] = (rnd()*2 - 1)*h; }
+      out.push([c[0]*S + p[0], c[1]*S + p[1], c[2]*S + p[2], 0, g]);
+    }
+    return out;
+  },
+  nestedCones(n){  // cono grande con un tajo y otro cono adentro
+    const out = [];
+    for (let i = 0; i < n; i++){ const q = rnd(), t = Math.sqrt(rnd()); let a;
+      if (q < .5 || q >= .9){ do a = rnd()*2*Math.PI; while (a > .5 && a < 2.2);
+        out.push(q < .5 ? [.85*t*Math.cos(a), -.9 + t*1.7, .85*t*Math.sin(a), 0, 1] : [.85*Math.cos(a), .8, .85*Math.sin(a), 0, 1]); }
+      else { a = rnd()*2*Math.PI; out.push([.5*t*Math.cos(a), -.6 + t*1.1, .5*t*Math.sin(a), 0, 0]); }
+    }
+    return out;
+  },
+  helix(n){
+    const out = [];
+    for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
+      if (s < 2) out.push([Math.cos(a + s*Math.PI)*.5, y, Math.sin(a + s*Math.PI)*.5, 0, s]);
+      else { const b = Math.round(y*8)/8, ab = b*3*Math.PI, u = rnd()*2 - 1; out.push([Math.cos(ab)*.5*u, b, Math.sin(ab)*.5*u, 0, u > 0 ? 1 : 0]); }   // peldaños mitad y mitad
+    }
+    return out;
+  },
 };
 
 let FIX = new Uint8Array(0), GX = new Float32Array(0), GY = GX, GR = GX, GA = GX, stars = [], starKey = '', spriteKey = '', sprites = [];
@@ -773,7 +842,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

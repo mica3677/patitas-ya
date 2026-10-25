@@ -587,6 +587,99 @@ def _esfera_fib(n, rng):
     return np.c_[np.cos(i * g) * r, y, np.sin(i * g) * r]
 
 
+def _mitades(n, rng):
+    R, G = rng.random, rng.normal; out = []; Rr = .85; Gp = .12
+    for _ in range(n):
+        q = R(); sg = -1 if R() < .5 else 1; a = R() * 2 * math.pi
+        if q < .6:
+            v = _n3(rng.normal(size=3)); l = v[0] < 0; out.append([v[0] * Rr + (-Gp if l else Gp), v[1] * Rr, v[2] * Rr, 0, 1 if l else 0])
+        elif q < .82:
+            r = math.sqrt(R()) * Rr; out.append([sg * Gp, r * math.cos(a), r * math.sin(a), 0, 1 if sg < 0 else 0])
+        else: out.append([sg * Gp, Rr * math.cos(a), Rr * math.sin(a), 0, 1 if sg < 0 else 0])
+    return np.array(out)
+
+
+def _cuencos(n, rng):
+    R = rng.random; out = []; Rr = .8; C = .28
+    for _ in range(n):
+        q = R(); sg = 1 if R() < .5 else -1; a = R() * 2 * math.pi
+        if q < .84:
+            v = _n3(rng.normal(size=3)); out.append([abs(v[0]) * sg * Rr - sg * C, v[1] * Rr, v[2] * Rr, 0, 1 if sg == 1 else 0])
+        else: out.append([-sg * C, Rr * math.cos(a), Rr * math.sin(a), 0, 1 if sg == 1 else 0])
+    return np.array(out)
+
+
+def _planeta_cortado(n, rng):
+    R = rng.random; out = []; SH = [(.95, 1), (.72, 0), (.5, 1)]
+    cut = lambda p: p[0] > 0 and p[1] > 0 and p[2] > 0
+    while len(out) < n:
+        q = R()
+        if q < .6:
+            v = _n3(rng.normal(size=3)); r, g = SH[int(R() * 3)]; p = v * r
+            if not cut(p): out.append(list(p) + [0, g])
+        elif q < .9:
+            k = int(R() * 3); r = math.sqrt(R()) * .95; t = R() * math.pi / 2; p = [0., 0., 0.]; p[(k + 1) % 3] = r * math.cos(t); p[(k + 2) % 3] = r * math.sin(t)
+            out.append(p + [0, 1 if r > .72 else 0 if r > .5 else 1 if r > .25 else 0])
+        else:
+            v = _n3(rng.normal(size=3)); r = .25 * R() ** (1 / 3); p = v * r
+            if not cut(p): out.append(list(p) + [0, 0])
+    return np.array(out)
+
+
+def _toro_cortado(n, rng):
+    R = rng.random; out = []; R0, r0 = .65, .3
+    def P(u, rr, v): return [(R0 + rr * math.cos(v)) * math.cos(u), rr * math.sin(v), (R0 + rr * math.cos(v)) * math.sin(u)]
+    for _ in range(n):
+        if R() < .62: out.append(P(math.pi / 2 + R() * 1.5 * math.pi, r0, R() * 2 * math.pi) + [0, 1])
+        else: out.append(P(0 if R() < .5 else math.pi / 2, math.sqrt(R()) * r0, R() * 2 * math.pi) + [0, 0])
+    return np.array(out)
+
+
+def _esfera_en_cubo(n, rng):
+    R = rng.random; out = []; H = .66; ed = []
+    for x in (-1, 1):
+        for y in (-1, 1):
+            for z in (-1, 1):
+                p = [x, y, z]
+                for k in range(3):
+                    if p[k] < 0: q_ = list(p); q_[k] = 1; ed.append((np.array(p, float), np.array(q_, float)))
+    for _ in range(n):
+        q = R()
+        if q < .26:
+            a, b = ed[int(R() * 12)]; out.append(list((a + (b - a) * R()) * H) + [0, 1])
+        elif q < .34:
+            k = int(R() * 3); p = [0., 0., 0.]; p[k] = -H if R() < .5 else H; p[(k + 1) % 3] = (R() * 2 - 1) * H; p[(k + 2) % 3] = (R() * 2 - 1) * H; out.append(p + [0, 1])
+        else: out.append(list(_n3(rng.normal(size=3)) * .42) + [0, 0])
+    return np.array(out)
+
+
+def _cubitos(n, rng):
+    R = rng.random; out = []; S_, h = .56, .2
+    for _ in range(n):
+        c = [int(R() * 3) - 1 for _ in range(3)]; g = (c[0] + c[1] + c[2]) % 2; k = int(R() * 3); p = [0., 0., 0.]
+        if R() < .2:
+            p[k] = (-1 if R() < .5 else 1) * h; p[(k + 1) % 3] = (R() * 2 - 1) * h; p[(k + 2) % 3] = (R() * 2 - 1) * h
+        else:
+            p = [(-1 if R() < .5 else 1) * h for _ in range(3)]; p[k] = (R() * 2 - 1) * h
+        out.append([c[0] * S_ + p[0], c[1] * S_ + p[1], c[2] * S_ + p[2], 0, g])
+    return np.array(out)
+
+
+
+def _conos_anidados(n, rng):
+    R = rng.random; out = []
+    for _ in range(n):
+        q = R(); t = math.sqrt(R())
+        if q < .5 or q >= .9:
+            while True:
+                a = R() * 2 * math.pi
+                if not (.5 < a < 2.2): break
+            out.append([.85 * t * math.cos(a), -.9 + t * 1.7, .85 * t * math.sin(a), 0, 1] if q < .5 else [.85 * math.cos(a), .8, .85 * math.sin(a), 0, 1])
+        else:
+            a = R() * 2 * math.pi; out.append([.5 * t * math.cos(a), -.6 + t * 1.1, .5 * t * math.sin(a), 0, 0])
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -607,12 +700,11 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "helice":
         out = []
         for i in range(n):
-            s = i % 3; y = rng.random() * 2 - 1; a = y * 3 * math.pi
-            if s < 2:
-                out.append([math.cos(a + s * math.pi) * .5, y, math.sin(a + s * math.pi) * .5])
+            s_ = i % 3; y = rng.random() * 2 - 1; a = y * 3 * math.pi
+            if s_ < 2: out.append([math.cos(a + s_ * math.pi) * .5, y, math.sin(a + s_ * math.pi) * .5, 0, s_])
             else:
                 b = round(y * 8) / 8; ab = b * 3 * math.pi; u = rng.random() * 2 - 1
-                out.append([math.cos(ab) * .5 * u, b, math.sin(ab) * .5 * u])
+                out.append([math.cos(ab) * .5 * u, b, math.sin(ab) * .5 * u, 0, 1 if u > 0 else 0])
         return np.array(out)
     if nombre == "cono":
         t = np.sqrt(rng.random(n)); a = rng.random(n) * 2 * math.pi
@@ -752,6 +844,13 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "plasma": return _plasma(n, rng)
     if nombre == "explosion": return _explosion(n, rng)
     if nombre == "esfera_fibonacci": return _esfera_fib(n, rng)
+    if nombre == "mitades": return _mitades(n, rng)
+    if nombre == "cuencos": return _cuencos(n, rng)
+    if nombre == "planeta_cortado": return _planeta_cortado(n, rng)
+    if nombre == "toro_cortado": return _toro_cortado(n, rng)
+    if nombre == "esfera_en_cubo": return _esfera_en_cubo(n, rng)
+    if nombre == "cubitos": return _cubitos(n, rng)
+    if nombre == "conos_anidados": return _conos_anidados(n, rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -782,7 +881,7 @@ def main():
                                                   "calabaza", "reloj_arena", "luna", "teseracto", "bobina", "sierpinski", "futbol_americano", "baloncesto", "futbol", "ovni",
                                                   "cohete", "estrella", "copo", "arbol_navidad", "fantasma", "calavera", "telarana", "texto3d", "joya", "bandera", "muneco_nieve",
                                                   "baston_caramelo", "dado", "moneda", "esfera_fibonacci", "medusa", "mariposa", "planeta", "arbol_fractal", "cometa", "nebulosa",
-                                                  "plasma", "explosion"])
+                                                  "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubitos", "conos_anidados"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
