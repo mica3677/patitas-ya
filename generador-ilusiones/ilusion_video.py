@@ -680,6 +680,22 @@ def _conos_anidados(n, rng):
     return np.array(out)
 
 
+def _cubo_puntos(n, rng):
+    R = rng.random; H = .7; out = []; ed = []
+    for x in (-1, 1):
+        for y in (-1, 1):
+            for z in (-1, 1):
+                p = [x, y, z]
+                for k in range(3):
+                    if p[k] < 0: q_ = list(p); q_[k] = 1; ed.append((np.array(p, float), np.array(q_, float)))
+    for _ in range(n):
+        if R() < .76:
+            a, b = ed[int(R() * 12)]; out.append(list((a + (b - a) * R()) * H))
+        else:
+            k = int(R() * 3); p = [0., 0., 0.]; p[k] = -H if R() < .5 else H; p[(k + 1) % 3] = (R() * 2 - 1) * H; p[(k + 2) % 3] = (R() * 2 - 1) * H; out.append(p)
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -851,6 +867,7 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera_en_cubo": return _esfera_en_cubo(n, rng)
     if nombre == "cubitos": return _cubitos(n, rng)
     if nombre == "conos_anidados": return _conos_anidados(n, rng)
+    if nombre == "cubo_puntos": return _cubo_puntos(n, rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -881,7 +898,7 @@ def main():
                                                   "calabaza", "reloj_arena", "luna", "teseracto", "bobina", "sierpinski", "futbol_americano", "baloncesto", "futbol", "ovni",
                                                   "cohete", "estrella", "copo", "arbol_navidad", "fantasma", "calavera", "telarana", "texto3d", "joya", "bandera", "muneco_nieve",
                                                   "baston_caramelo", "dado", "moneda", "esfera_fibonacci", "medusa", "mariposa", "planeta", "arbol_fractal", "cometa", "nebulosa",
-                                                  "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubitos", "conos_anidados"])
+                                                  "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
