@@ -1389,8 +1389,8 @@ def render_campo(a):
     cy = H * (.5 if a.diseno == "triangulo" else .47)
     box = (int(W / 2 - FR - 6), int(cy - FR - 6), int(W / 2 + FR + 6), int(cy + FR + 6)); bw, bh = box[2] - box[0], box[3] - box[1]
     total = int(round(a.seg * a.fps)); r_px = a.tam * .6 * SS
-    pausa = a.pausa if a.pausa is not None else (2.0 if a.seg >= 14 else 0.0); t_p = a.seg * .62      # pausa didactica: todo se congela y la figura desaparece
-    t_rev0, t_rev1 = min(1.5, a.seg * .1), min(6.0, a.seg * .38)                                    # el ruido se ordena de a poco
+    pausa = a.pausa or 0.0; t_p = a.seg * .62      # pausa didactica: todo se congela y la figura desaparece
+    rev = a.revela or 0.0; t_rev0, t_rev1 = (0.0, rev) if rev > 0 else (-1.0, 0.0)                    # por defecto la figura esta desde el primer segundo; --revela S la ordena de a poco
     DS = 2
 
     def fotograma(i):
@@ -1470,7 +1470,8 @@ def main():
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
-    ap.add_argument("--pausa", type=float, default=None, help="campo_*: segundos de pausa donde todo se congela y la figura desaparece (0 = sin pausa)")
+    ap.add_argument("--pausa", type=float, default=None, help="campo_*: segundos de pausa a los 62%% del video donde todo se congela y la figura desaparece (nada = sin pausa)")
+    ap.add_argument("--revela", type=float, default=None, help="campo_*: segundos que tarda el ruido en ordenarse (0 o nada = la figura esta desde el principio)")
     ap.add_argument("--salida", default=None)
     ap.add_argument("--preview", action="store_true", help="solo guarda un PNG de control")
     ap.add_argument("--preview-t", type=float, default=1 / 7, help="momento del preview, 0 a 1")

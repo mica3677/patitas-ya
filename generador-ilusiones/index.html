@@ -1132,8 +1132,7 @@ function drawHidden(cy, cols){
   const n = pts.length ? +$('n').value : +$('n').value, nombre = HIDDEN[$('shape').value], key = n + '|' + seedBase;
   if (key !== hidKey){ hidSetup(n); hidKey = key; }
   const FR = Math.round(W*.435), FS = 2*FR, v = +$('v').value*14, size = +$('s').value, seg = +$('r').value, tt = hidT % seg;
-  const tp = seg*.62, pausa = seg >= 14 ? 2 : 0, te = tt < tp ? tt : (tt < tp + pausa ? tp : tt - pausa), t0 = Math.min(1.5, seg*.1), t1 = Math.min(6, seg*.38);
-  const u = Math.min(1, Math.max(0, (te - t0)/(t1 - t0))), c = u*u*(3 - 2*u), DS = 2, S = FS/DS, m = hidSilueta(nombre, S, te), sg = $('rev').checked ? -1 : 1;
+  const tp = seg*.62, pausa = 0, te = tt < tp ? tt : (tt < tp + pausa ? tp : tt - pausa), c = 1, DS = 2, S = FS/DS, m = hidSilueta(nombre, S, te), sg = $('rev').checked ? -1 : 1;
   const pv = .5/(1 - .5*c), r = size*1.2*(W/1080), NBK = 8;
   ctx.save(); ctx.beginPath(); ctx.arc(W/2, cy, FR, 0, 2*Math.PI); ctx.clip();
   const bk = Array.from({length: NBK}, () => []);
@@ -1222,9 +1221,9 @@ $('shape').addEventListener('input', () => {                 // las flechas en c
 });
 $('shape').addEventListener('input', () => {                 // figura escondida: ajustes pensados para que se vea bien en el celu
   if (!HIDDEN[$('shape').value]) return;
-  setV('n', 16000); setV('s', 3); setV('v', 10); setV('t', 0); setV('d', 0); setV('b', 0); setV('e', 0); setV('r', 20); $('dis').value = 'triangulo'; $('rev').checked = false;
-  applyPalette(PALETAS['Clásico']); $('top').value = 'Aguantá 5 segundos'; $('bot').value = 'Parte 2 con una más difícil'; if ($('shape').value === 'hiddenWord' && $('word').value === 'USA') $('word').value = 'TU MENTE'; labels();
-  $('msg').textContent = 'Mirá sin enfocar un punto fijo: la figura solo existe mientras se mueve. A los 12 s hay una pausa donde todo se congela y desaparece. Usá 20 s de duración.';
+  setV('n', 16000); setV('s', 3); setV('v', 10); setV('t', 0); setV('d', 0); setV('b', 0); setV('e', 0); setV('r', 15); $('dis').value = 'triangulo'; $('rev').checked = false;
+  applyPalette(PALETAS['Clásico']); $('top').value = '¿Qué ves dentro del círculo?'; $('bot').value = 'Comentá qué figura viste'; if ($('shape').value === 'hiddenWord' && $('word').value === 'USA') $('word').value = 'TU MENTE'; labels();
+  $('msg').textContent = 'Mirá sin enfocar un punto fijo: la figura está escondida todo el video y solo existe mientras se mueve. Es un formato distinto al de los giros.';
 });
 ['n','shape','word'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
 if (document.fonts && document.fonts.load) { document.fonts.load('400 20px "Space Mono"').catch(() => {}); document.fonts.load('italic 400 20px "Space Mono"').catch(() => {}); }
