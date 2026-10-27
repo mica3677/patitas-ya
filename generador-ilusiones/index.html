@@ -95,6 +95,14 @@
     <option value="shellsCounter">Esferas que giran al revés</option>
     <option value="cubesCounter">Cubos que giran al revés</option>
     <option value="slices">Rodajas que giran al revés</option>
+        <option value="prismTri">Prisma triangular</option>
+    <option value="prismHex">Prisma hexagonal</option>
+    <option value="house">Casita 3D</option>
+    <option value="ramp">Rampa</option>
+    <option value="stairs">Escalera</option>
+    <option value="jack">Cruz 3D</option>
+    <option value="frame">Marco cuadrado</option>
+    <option value="ziggurat">Torre escalonada</option>
     <option value="halves">Esfera partida en dos</option>
     <option value="bowls">Cuencos cruzados</option>
     <option value="cutplanet">Planeta cortado (capas)</option>
@@ -194,6 +202,31 @@ function glyphs(txt, maxW, maxH){           // letras a puntos: devuelve [x, y, 
   if (!all.length) return [];
   const sc = Math.min(maxW/(x1 - x0 || 1), maxH/(y1 - y0 || 1)), cx = (x0 + x1)/2, cy = (y0 + y1)/2;
   return all.map(p => [(p[0] - cx)*sc, -(p[1] - cy)*sc, p[2]]);
+}
+function inPoly(p, poly){ let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++){ const a = poly[i], b = poly[j];
+  if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0])*(p[1] - a[1])/(b[1] - a[1]) + a[0]) c = !c; } return c; }
+function prismPts(n, polys, L, sc){      // prisma: contorno en x,y (con huecos opcionales) extruido ±L en z; bordes marcados y caras de puntos
+  const segs = [], cum = [], av = []; let tot = 0, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const P of polys) for (let i = 0; i < P.length; i++){ const a = P[i], b = P[(i + 1) % P.length]; segs.push([a, b]); tot += Math.hypot(b[0] - a[0], b[1] - a[1]); cum.push(tot); av.push(a); }
+  for (const p of polys[0]){ x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+  const cx = (x0 + x1)/2, cy = (y0 + y1)/2, pick = () => { const u = rnd()*tot; let k = 0; while (cum[k] < u) k++; return k; }, out = [];
+  for (let i = 0; i < n; i++){ const q = rnd(); let p;
+    if (q < .45){ const [a, b] = segs[pick()], u = rnd(); p = [a[0] + (b[0] - a[0])*u, a[1] + (b[1] - a[1])*u, rnd() < .5 ? L : -L]; }
+    else if (q < .7){ const v = av[Math.floor(rnd()*av.length)]; p = [v[0], v[1], (rnd()*2 - 1)*L]; }
+    else if (q < .86){ const [a, b] = segs[pick()], u = rnd(); p = [a[0] + (b[0] - a[0])*u, a[1] + (b[1] - a[1])*u, (rnd()*2 - 1)*L]; }
+    else { let t; do t = [x0 + rnd()*(x1 - x0), y0 + rnd()*(y1 - y0)]; while (!inPoly(t, polys[0]) || polys.slice(1).some(h => inPoly(t, h))); p = [t[0], t[1], rnd() < .5 ? L : -L]; }
+    out.push([(p[0] - cx)*sc, (p[1] - cy)*sc, p[2]*sc]);
+  }
+  return out;
+}
+function boxesPts(n, boxes){             // varias cajas [cx,cy,cz,hx,hy,hz]: aristas marcadas y caras de puntos
+  const A = boxes.map(b => b[3]*b[4] + b[4]*b[5] + b[3]*b[5]), tot = A.reduce((s, a) => s + a, 0), out = [];
+  for (let i = 0; i < n; i++){ let u = rnd()*tot, k = 0; while (u > A[k] && k < A.length - 1){ u -= A[k]; k++; }
+    const [cx, cy, cz, hx, hy, hz] = boxes[k], h = [hx, hy, hz], p = [0, 0, 0], a = Math.floor(rnd()*3);
+    if (rnd() < .7){ for (let m = 0; m < 3; m++) p[m] = m === a ? (rnd()*2 - 1)*h[m] : (rnd() < .5 ? -1 : 1)*h[m]; }
+    else { for (let m = 0; m < 3; m++) p[m] = (rnd()*2 - 1)*h[m]; p[a] = (rnd() < .5 ? -1 : 1)*h[a]; }
+    out.push([cx + p[0], cy + p[1], cz + p[2]]); }
+  return out;
 }
 const shapes = {
   sphere(n){
@@ -811,6 +844,14 @@ const shapes = {
     }
     return out;
   },
+  prismTri(n){ return prismPts(n, [[[-.5, .45], [-.5, -.45], [.55, 0]]], .45, 1.3); },
+  prismHex(n){ return prismPts(n, [Array.from({length: 6}, (_, k) => [.6*Math.cos(k*Math.PI/3), .6*Math.sin(k*Math.PI/3)])], .45, 1.25); },
+  house(n){ return prismPts(n, [[[-.5, -.5], [.5, -.5], [.5, .15], [0, .65], [-.5, .15]]], .5, 1.2); },
+  ramp(n){ return prismPts(n, [[[-.6, -.4], [.6, -.4], [.6, .4]]], .5, 1.2); },
+  stairs(n){ return prismPts(n, [[[-.6, -.6], [.6, -.6], [.6, .6], [.3, .6], [.3, .3], [0, .3], [0, 0], [-.3, 0], [-.3, -.3], [-.6, -.3]]], .35, 1.15); },
+  jack(n){ return boxesPts(n, [[0, 0, 0, .75, .14, .14], [0, 0, 0, .14, .75, .14], [0, 0, 0, .14, .14, .75]]); },
+  frame(n){ return prismPts(n, [[[-.8, -.8], [.8, -.8], [.8, .8], [-.8, .8]], [[-.5, -.5], [-.5, .5], [.5, .5], [.5, -.5]]], .3, 1); },
+  ziggurat(n){ return boxesPts(n, [[0, -.7, 0, .75, .18, .75], [0, -.34, 0, .55, .18, .55], [0, .02, 0, .38, .18, .38], [0, .38, 0, .2, .18, .2], [0, .7, 0, .09, .14, .09]]); },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -942,7 +983,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

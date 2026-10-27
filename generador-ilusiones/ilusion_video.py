@@ -810,6 +810,55 @@ def _rodajas(n, rng):
     return np.array(out)
 
 
+def _en_poli(p, poly):
+    c = False; j = len(poly) - 1
+    for i in range(len(poly)):
+        a, b = poly[i], poly[j]
+        if (a[1] > p[1]) != (b[1] > p[1]) and p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]: c = not c
+        j = i
+    return c
+
+
+def _prisma(n, polys, L, sc, rng):
+    """Prisma: contorno en x,y (con huecos opcionales) extruido +-L en z; bordes marcados y caras de puntos."""
+    R = rng.random; segs = []; cum = []; av = []; tot = 0.
+    for P in polys:
+        for i in range(len(P)):
+            a, b = P[i], P[(i + 1) % len(P)]; segs.append((a, b)); tot += math.hypot(b[0] - a[0], b[1] - a[1]); cum.append(tot); av.append(a)
+    xs = [p[0] for p in polys[0]]; ys = [p[1] for p in polys[0]]; x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys); cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    cum = np.array(cum); out = []
+    pick = lambda: int(np.searchsorted(cum, R() * tot))
+    for _ in range(n):
+        q = R()
+        if q < .45:
+            a, b = segs[pick()]; u = R(); p = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, L if R() < .5 else -L]
+        elif q < .7:
+            v = av[int(R() * len(av))]; p = [v[0], v[1], (R() * 2 - 1) * L]
+        elif q < .86:
+            a, b = segs[pick()]; u = R(); p = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, (R() * 2 - 1) * L]
+        else:
+            while True:
+                t = (x0 + R() * (x1 - x0), y0 + R() * (y1 - y0))
+                if _en_poli(t, polys[0]) and not any(_en_poli(t, h) for h in polys[1:]): break
+            p = [t[0], t[1], L if R() < .5 else -L]
+        out.append([(p[0] - cx) * sc, (p[1] - cy) * sc, p[2] * sc])
+    return np.array(out)
+
+
+def _cajas(n, boxes, rng):
+    """Varias cajas [cx,cy,cz,hx,hy,hz]: aristas marcadas y caras de puntos."""
+    R = rng.random; A = np.array([b[3] * b[4] + b[4] * b[5] + b[3] * b[5] for b in boxes]); cum = np.cumsum(A); out = []
+    for _ in range(n):
+        k = min(int(np.searchsorted(cum, R() * cum[-1])), len(boxes) - 1); cx, cy, cz, hx, hy, hz = boxes[k]; h = [hx, hy, hz]; p = [0., 0., 0.]; a = int(R() * 3)
+        if R() < .7:
+            for m in range(3): p[m] = (R() * 2 - 1) * h[m] if m == a else (-1 if R() < .5 else 1) * h[m]
+        else:
+            for m in range(3): p[m] = (R() * 2 - 1) * h[m]
+            p[a] = (-1 if R() < .5 else 1) * h[a]
+        out.append([cx + p[0], cy + p[1], cz + p[2]])
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -991,6 +1040,14 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esferas_contrarias": return _esferas_contrarias(n, rng)
     if nombre == "cubos_contrarios": return _cubos_contrarios(n, rng)
     if nombre == "rodajas": return _rodajas(n, rng)
+    if nombre == "prisma_triangular": return _prisma(n, [[(-.5, .45), (-.5, -.45), (.55, 0)]], .45, 1.3, rng)
+    if nombre == "prisma_hexagonal": return _prisma(n, [[(.6 * math.cos(k * math.pi / 3), .6 * math.sin(k * math.pi / 3)) for k in range(6)]], .45, 1.25, rng)
+    if nombre == "casita": return _prisma(n, [[(-.5, -.5), (.5, -.5), (.5, .15), (0, .65), (-.5, .15)]], .5, 1.2, rng)
+    if nombre == "rampa": return _prisma(n, [[(-.6, -.4), (.6, -.4), (.6, .4)]], .5, 1.2, rng)
+    if nombre == "escalera": return _prisma(n, [[(-.6, -.6), (.6, -.6), (.6, .6), (.3, .6), (.3, .3), (0, .3), (0, 0), (-.3, 0), (-.3, -.3), (-.6, -.3)]], .35, 1.15, rng)
+    if nombre == "cruz": return _cajas(n, [(0, 0, 0, .75, .14, .14), (0, 0, 0, .14, .75, .14), (0, 0, 0, .14, .14, .75)], rng)
+    if nombre == "marco": return _prisma(n, [[(-.8, -.8), (.8, -.8), (.8, .8), (-.8, .8)], [(-.5, -.5), (-.5, .5), (.5, .5), (.5, -.5)]], .3, 1., rng)
+    if nombre == "torre_escalonada": return _cajas(n, [(0, -.7, 0, .75, .18, .75), (0, -.34, 0, .55, .18, .55), (0, .02, 0, .38, .18, .38), (0, .38, 0, .2, .18, .2), (0, .7, 0, .09, .14, .09)], rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -1023,7 +1080,8 @@ def main():
                                                   "baston_caramelo", "dado", "moneda", "esfera_fibonacci", "medusa", "mariposa", "planeta", "arbol_fractal", "cometa", "nebulosa",
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
-                                                  "cubos_contrarios", "rodajas"])
+                                                  "cubos_contrarios", "rodajas",
+                                                  "prisma_triangular", "prisma_hexagonal", "casita", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
