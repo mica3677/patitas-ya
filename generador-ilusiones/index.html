@@ -70,6 +70,12 @@
     <option value="skull">Calavera</option>
     <option value="web">Telaraña</option>
     <option value="text3d">Texto 3D (tu palabra)</option>
+    <option value="hiddenStar">Figura escondida: estrella (solo en movimiento)</option>
+    <option value="hiddenHeart">Figura escondida: corazón</option>
+    <option value="hiddenBolt">Figura escondida: rayo</option>
+    <option value="hiddenCircle">Figura escondida: círculo</option>
+    <option value="hiddenArrow">Figura escondida: flecha</option>
+    <option value="hiddenWord">Figura escondida: tu palabra</option>
         <option value="gem">Diamante (joya)</option>
     <option value="flag">Bandera de EE. UU.</option>
     <option value="snowman">Muñeco de nieve</option>
@@ -1015,6 +1021,7 @@ const shapes = {
       g.push([p[0] + gauss()*s, p[1] + gauss()*s, p[2] + gauss()*s, br]); }
     return g.map(p => [p[0], p[1], p[2], 0, 1, 1, p[3]]).concat(g.map(p => [-p[0], -p[1], -p[2], 0, 0, 1, p[3]]));
   },
+  hiddenStar(){ return []; }, hiddenHeart(){ return []; }, hiddenBolt(){ return []; }, hiddenCircle(){ return []; }, hiddenArrow(){ return []; }, hiddenWord(){ return []; },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -1094,6 +1101,57 @@ function wrap(text, max){
   if (cur) lines.push(cur); return lines;
 }
 
+
+// ---- Figura escondida: la mitad de los puntos sube y la otra mitad baja; la silueta solo se ve en el movimiento ----
+const HIDDEN = {hiddenStar:'campo_estrella', hiddenHeart:'campo_corazon', hiddenBolt:'campo_rayo', hiddenCircle:'campo_circulo', hiddenArrow:'campo_flecha', hiddenWord:'campo_palabra'};
+let hidT = 0, hidKey = '', HD = null, hidMask = null, hidCtx = null;
+function hidSetup(n){
+  const r = (() => { let s = seedBase*7919 + 17; return () => (s = (s*1664525 + 1013904223) >>> 0) / 4294967296; })();
+  HD = {x0: new Float32Array(n), y0: new Float32Array(n), capa: new Int8Array(n), ruido: new Uint8Array(n), ang: new Float32Array(n), ri: new Float32Array(n), si: new Float32Array(n)};
+  for (let i = 0; i < n; i++){ HD.x0[i] = r(); HD.y0[i] = r(); HD.capa[i] = r() < .5 ? -1 : 1; HD.ruido[i] = r() < .12 ? 1 : 0; HD.ang[i] = r()*2*Math.PI; HD.ri[i] = r(); HD.si[i] = r(); }
+}
+function hidSilueta(nombre, S, t){      // la misma silueta que dibuja el render del video
+  if (!hidMask){ hidMask = document.createElement('canvas'); hidCtx = hidMask.getContext('2d', {willReadFrequently: true}); }
+  if (hidMask.width !== S){ hidMask.width = S; hidMask.height = S; }
+  const g = hidCtx, c = S/2, resp = 1 + .06*Math.sin(2*Math.PI*t/7), Rr = S*.30*resp, ox = S*.03*Math.sin(2*Math.PI*t/11), oy = S*.03*Math.cos(2*Math.PI*t/13), rot = 2*Math.PI*t/26;
+  g.clearRect(0, 0, S, S); g.fillStyle = '#fff'; g.beginPath();
+  const poly = (pp, girar = true) => pp.forEach(([x, y], k) => { const X = girar ? x*Math.cos(rot) - y*Math.sin(rot) : x, Y = girar ? x*Math.sin(rot) + y*Math.cos(rot) : y; k ? g.lineTo(c + ox + X*Rr, c + oy + Y*Rr) : g.moveTo(c + ox + X*Rr, c + oy + Y*Rr); });
+  if (nombre === 'campo_estrella') poly(Array.from({length: 10}, (_, k) => { const q = k % 2 ? .46 : 1; return [q*Math.sin(k*Math.PI/5), -q*Math.cos(k*Math.PI/5)]; }));
+  else if (nombre === 'campo_corazon') poly(Array.from({length: 120}, (_, k) => { const a = k/119*2*Math.PI; return [16*Math.sin(a)**3/17, -(13*Math.cos(a) - 5*Math.cos(2*a) - 2*Math.cos(3*a) - Math.cos(4*a))/17 + .05]; }), false);
+  else if (nombre === 'campo_rayo') poly([[.25, -1], [-.55, .12], [-.05, .12], [-.3, 1], [.6, -.2], [.08, -.2], [.5, -1]], false);
+  else if (nombre === 'campo_circulo') g.arc(c + ox, c + oy, Rr, 0, 2*Math.PI);
+  else if (nombre === 'campo_flecha') poly([[-1, -.28], [.15, -.28], [.15, -.7], [1, 0], [.15, .7], [.15, .28], [-1, .28]]);
+  g.fill();
+  if (nombre === 'campo_palabra'){
+    const txt = ($('word').value || 'HOLA').toUpperCase(); g.font = '800 400px Poppins, sans-serif'; const tw = g.measureText(txt).width;
+    g.font = '800 ' + Math.round(400*Math.min(1, S*.86/tw)*resp) + 'px Poppins, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, c + ox, c + oy);
+  }
+  return g.getImageData(0, 0, S, S).data;
+}
+function drawHidden(cy, cols){
+  const n = pts.length ? +$('n').value : +$('n').value, nombre = HIDDEN[$('shape').value], key = n + '|' + seedBase;
+  if (key !== hidKey){ hidSetup(n); hidKey = key; }
+  const FR = Math.round(W*.435), FS = 2*FR, v = +$('v').value*14, size = +$('s').value, seg = +$('r').value, tt = hidT % seg;
+  const tp = seg*.62, pausa = seg >= 14 ? 2 : 0, te = tt < tp ? tt : (tt < tp + pausa ? tp : tt - pausa), t0 = Math.min(1.5, seg*.1), t1 = Math.min(6, seg*.38);
+  const u = Math.min(1, Math.max(0, (te - t0)/(t1 - t0))), c = u*u*(3 - 2*u), DS = 2, S = FS/DS, m = hidSilueta(nombre, S, te), sg = $('rev').checked ? -1 : 1;
+  const pv = .5/(1 - .5*c), r = size*1.2*(W/1080), NBK = 8;
+  ctx.save(); ctx.beginPath(); ctx.arc(W/2, cy, FR, 0, 2*Math.PI); ctx.clip();
+  const bk = Array.from({length: NBK}, () => []);
+  for (let i = 0; i < n; i++){
+    let x, y;
+    if (HD.ruido[i]){ x = ((HD.x0[i]*FS + Math.cos(HD.ang[i])*v*te) % FS + FS) % FS; y = ((HD.y0[i]*FS + Math.sin(HD.ang[i])*v*te) % FS + FS) % FS; if (HD.si[i] >= .5) continue; }
+    else {
+      x = HD.x0[i]*FS; y = ((HD.y0[i]*FS + HD.capa[i]*v*te*sg) % FS + FS) % FS;
+      const dentro = m[((Math.min(S - 1, y/DS | 0))*S + Math.min(S - 1, x/DS | 0))*4 + 3] > 127;
+      if (!((HD.capa[i] < 0 ? dentro : !dentro) || HD.ri[i] >= c) || HD.si[i] >= pv) continue;
+    }
+    if (Math.hypot(x - FR, y - FR) >= FR) continue;
+    bk[Math.min(NBK - 1, (1 - y/FS)*NBK | 0)].push(W/2 - FR + x, cy - FR + y);
+  }
+  bk.forEach((arr, k) => { ctx.fillStyle = cols[Math.round((k + .5)/NBK*(NB - 1))]; for (let j = 0; j < arr.length; j += 2) ctx.fillRect(arr[j] - r/2, arr[j + 1] - r/2, r, r); });
+  ctx.restore();
+}
+
 function draw(){
   ctx.fillStyle = $('cbg').value; ctx.fillRect(0,0,W,H);
   const cols = colores(); ensureStars();
@@ -1101,8 +1159,8 @@ function draw(){
   const tilt = +$('t').value*Math.PI/180, size = +$('s').value, dep = +$('d').value/100;
   const tri = $('dis').value === 'triangulo', R = W*(+$('z').value/100), cy = H*(tri ? .5 : .47);
   const ca = Math.cos(angle), sa = Math.sin(angle), ct = Math.cos(tilt), st = Math.sin(tilt);
-  let last = -1;
-  for (let i = 0; i < pts.length; i++){
+  let last = -1; const hid = !!HIDDEN[$('shape').value]; if (hid) drawHidden(cy, cols);
+  for (let i = 0; i < (hid ? 0 : pts.length); i++){
     const [x,y,z] = pts[i];
     if (bks[i] !== last){ last = bks[i]; ctx.fillStyle = cols[last]; }
     const fx = FIX[i], sp = SPIN[i], cc = sp === 1 ? ca : Math.cos(angle*sp), ss = sp === 1 ? sa : Math.sin(angle*sp), x1 = fx ? x : x*cc + z*ss, z1 = -x*ss + z*cc;          // giro sobre el eje vertical (los puntos fijos no giran)
@@ -1114,7 +1172,7 @@ function draw(){
     ctx.fillRect(W/2 + x1*R - r/2, cy - y2*R - r/2, r, r);
     GX[i] = W/2 + x1*R; GY[i] = cy - y2*R; GR[i] = r; GA[i] = ctx.globalAlpha;
   }
-  const glow = +$('b').value/100;
+  const glow = hid ? 0 : +$('b').value/100;
   if (glow > 0){                                            // halo suave: un sprite radial por color, sumado a la imagen
     const sp = getSprites(cols); ctx.globalCompositeOperation = 'lighter'; last = -1;
     for (let i = 0; i < pts.length; i++){ const s = GR[i]*7;
@@ -1139,7 +1197,7 @@ function draw(){
 function frame(now){
   const dt = Math.min(0.1, (now-last)/1000); last = now;
   const dir = $('rev').checked ? -1 : 1;
-  angle += dir * (+$('v').value/60)*2*Math.PI*dt;
+  angle += dir * (+$('v').value/60)*2*Math.PI*dt; hidT += dt;
   draw(); requestAnimationFrame(frame);
 }
 
@@ -1162,6 +1220,12 @@ $('shape').addEventListener('input', () => {                 // las flechas en c
   applyPalette(PALETAS['Oro y violeta']); $('ca').value = '#f0b323'; $('cb').value = '#6c5ce7'; $('cbg').value = '#000000'; $('top').value = ''; $('bot').value = ''; labels();
   $('msg').textContent = 'Ajustes cargados para copiar el video del cilindro con flechas: 8 vueltas por minuto, 15 s (cierra la vuelta). Sin texto.';
 });
+$('shape').addEventListener('input', () => {                 // figura escondida: ajustes pensados para que se vea bien en el celu
+  if (!HIDDEN[$('shape').value]) return;
+  setV('n', 16000); setV('s', 3); setV('v', 10); setV('t', 0); setV('d', 0); setV('b', 0); setV('e', 0); setV('r', 20); $('dis').value = 'triangulo'; $('rev').checked = false;
+  applyPalette(PALETAS['Clásico']); $('top').value = 'Aguantá 5 segundos'; $('bot').value = 'Parte 2 con una más difícil'; if ($('shape').value === 'hiddenWord' && $('word').value === 'USA') $('word').value = 'TU MENTE'; labels();
+  $('msg').textContent = 'Mirá sin enfocar un punto fijo: la figura solo existe mientras se mueve. A los 12 s hay una pausa donde todo se congela y desaparece. Usá 20 s de duración.';
+});
 ['n','shape','word'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
 if (document.fonts && document.fonts.load) { document.fonts.load('400 20px "Space Mono"').catch(() => {}); document.fonts.load('italic 400 20px "Space Mono"').catch(() => {}); }
 if (document.fonts && document.fonts.load) document.fonts.load('800 100px Poppins').then(() => { if ($('shape').value === 'text3d') build(); }).catch(() => {});
@@ -1173,7 +1237,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',hiddenStar:'campo_estrella',hiddenHeart:'campo_corazon',hiddenBolt:'campo_rayo',hiddenCircle:'campo_circulo',hiddenArrow:'campo_flecha',hiddenWord:'campo_palabra',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);
@@ -1187,7 +1251,7 @@ $('rec').onclick = async () => {
     'Puntos arriba ' + $('ca').value + ' | abajo ' + $('cb').value + ' | Degradado: ' + ($('grad').checked ? 'sí' : 'no'),
     'Texto de arriba: ' + ($('top').value.trim() || '(sin texto)'),
     'Texto de abajo: ' + ($('bot').value.trim() || '(sin texto)'),
-    ...(sel.value === 'text3d' ? ['Palabra: ' + $('word').value] : []),
+    ...(sel.value === 'text3d' || sel.value === 'hiddenWord' ? ['Palabra: ' + $('word').value] : []),
     'Diseño: ' + ($('dis').value === 'triangulo' ? 'como el video del triángulo (triangulo)' : 'clásico (clasico)'),
     'Brillo: ' + $('b').value + '% | Estrellas de fondo: ' + $('e').value,
     'Duración: ' + $('r').value + ' s | ' + '30 fps | Versión (semilla): ' + seedBase

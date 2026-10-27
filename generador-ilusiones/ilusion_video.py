@@ -1334,6 +1334,109 @@ def capa_texto(arriba, abajo, diseno="clasico"):
     return np.asarray(img, dtype=np.float32) / 255
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Figura escondida: un campo de puntos donde una mitad sube y la otra baja. La figura solo existe en el MOVIMIENTO
+# (principio gestaltico del destino comun): dentro de la silueta se ven solo los puntos que suben, afuera solo los que
+# bajan. En una captura quieta la densidad es pareja y no se ve nada.
+# ---------------------------------------------------------------------------------------------------------------
+CAMPOS = ["campo_estrella", "campo_corazon", "campo_rayo", "campo_circulo", "campo_flecha", "campo_palabra"]
+
+
+def _silueta(nombre, palabra, tam, t, seg):
+    """Mascara booleana (tam x tam, centro = centro del campo) de la figura en el instante t. Gira, respira y se desplaza despacio."""
+    m = Image.new("L", (tam, tam), 0); d = ImageDraw.Draw(m); c = tam / 2
+    resp = 1 + .06 * math.sin(2 * math.pi * t / 7); R = tam * .30 * resp
+    ox, oy = tam * .03 * math.sin(2 * math.pi * t / 11), tam * .03 * math.cos(2 * math.pi * t / 13)
+    rot = 2 * math.pi * t / 26
+    def poligono(pp, girar=True):
+        q = [((x * math.cos(rot) - y * math.sin(rot)) if girar else x, (x * math.sin(rot) + y * math.cos(rot)) if girar else y) for x, y in pp]
+        d.polygon([(c + ox + x * R, c + oy + y * R) for x, y in q], fill=255)
+    if nombre == "campo_estrella":
+        poligono([((1 if k % 2 == 0 else .46) * math.sin(k * math.pi / 5), -(1 if k % 2 == 0 else .46) * math.cos(k * math.pi / 5)) for k in range(10)])
+    elif nombre == "campo_corazon":
+        pp = [(16 * math.sin(a) ** 3 / 17, -(13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)) / 17 + .05) for a in np.linspace(0, 2 * math.pi, 120)]
+        poligono(pp, girar=False)
+    elif nombre == "campo_rayo":
+        poligono([(.25, -1), (-.55, .12), (-.05, .12), (-.3, 1), (.6, -.2), (.08, -.2), (.5, -1)], girar=False)
+    elif nombre == "campo_circulo":
+        d.ellipse((c + ox - R, c + oy - R, c + ox + R, c + oy + R), fill=255)
+    elif nombre == "campo_flecha":
+        poligono([(-1, -.28), (.15, -.28), (.15, -.7), (1, 0), (.15, .7), (.15, .28), (-1, .28)])
+    elif nombre == "campo_palabra":
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts", "Poppins-ExtraBold.ttf")
+        txt = (palabra or "HOLA").upper(); fs = 400
+        try: f = ImageFont.truetype(ruta, fs)
+        except OSError: f = font(FONTS_B, fs)
+        tw = d.textlength(txt, font=f); fs = fs * min(1, tam * .86 / tw) * resp; f = ImageFont.truetype(ruta, int(fs))
+        d.text((c + ox, c + oy), txt, font=f, fill=255, anchor="mm")
+    return np.asarray(m) > 127
+
+
+def render_campo(a):
+    rng = np.random.default_rng(a.semilla)
+    FR = int(W * .435); FS = 2 * FR                                  # radio y lado del campo (circular, casi todo el ancho)
+    n = a.puntos; v = a.vueltas_min * 14.0                           # px/s de deriva
+    x0 = rng.random(n) * FS; y0 = rng.random(n) * FS
+    capa = np.where(rng.random(n) < .5, -1, 1); ruido = rng.random(n) < .12      # -1 sube, 1 baja; 12% van a su aire
+    ang = rng.random(n) * 2 * math.pi; r_i = rng.random(n); s_i = rng.random(n)
+    pal = PALETAS[a.paleta]; pbg, ptx, pa, pb = pal[:4]
+    c_bg, c_tx = rgb(a.fondo or pbg), rgb(a.texto or ptx); c_a = rgb(a.color or pa); c_b = rgb(a.color2) if a.color2 else (rgb(pb) if not a.color else c_a)
+    texto = capa_texto(a.arriba, a.abajo, a.diseno); base = c_bg + (c_tx - c_bg) * texto[..., None]
+    if a.estrellas:
+        sr = np.random.default_rng(a.semilla + 101); N = a.estrellas
+        sx, sy = sr.integers(0, W - 3, N), sr.integers(0, H - 3, N); sb = .15 + .6 * sr.random(N) * sr.random(N); sz = np.where(sr.random(N) < .15, 3, 2)
+        for k in range(N): base[sy[k]:sy[k] + sz[k], sx[k]:sx[k] + sz[k]] += c_tx * sb[k]
+    cy = H * (.5 if a.diseno == "triangulo" else .47)
+    box = (int(W / 2 - FR - 6), int(cy - FR - 6), int(W / 2 + FR + 6), int(cy + FR + 6)); bw, bh = box[2] - box[0], box[3] - box[1]
+    total = int(round(a.seg * a.fps)); r_px = a.tam * .6 * SS
+    pausa = a.pausa if a.pausa is not None else (2.0 if a.seg >= 14 else 0.0); t_p = a.seg * .62      # pausa didactica: todo se congela y la figura desaparece
+    t_rev0, t_rev1 = min(1.5, a.seg * .1), min(6.0, a.seg * .38)                                    # el ruido se ordena de a poco
+    DS = 2
+
+    def fotograma(i):
+        t = i / a.fps
+        te = t if t < t_p else (t_p if t < t_p + pausa else t - pausa)                          # tiempo "congelable"
+        u = min(1, max(0, (te - t_rev0) / (t_rev1 - t_rev0))); c = u * u * (3 - 2 * u)
+        mk = _silueta(a.forma, a.palabra, FS // DS, te, a.seg)
+        sgn = -1 if a.reves else 1
+        x = x0.copy(); y = (y0 + capa * v * te * sgn) % FS
+        x = np.where(ruido, (x0 + np.cos(ang) * v * te) % FS, x); y = np.where(ruido, (y0 + np.sin(ang) * v * te) % FS, y)
+        dentro = mk[np.clip((y / DS).astype(int), 0, mk.shape[0] - 1), np.clip((x / DS).astype(int), 0, mk.shape[1] - 1)]
+        consistente = np.where(capa < 0, dentro, ~dentro)
+        p_vis = .5 / (1 - .5 * c)                         # adelgaza el campo al principio para que el brillo no cambie mientras se ordena
+        vis = np.where(ruido, s_i < .5, (consistente | (r_i >= c)) & (s_i < p_vis)) & (np.hypot(x - FR, y - FR) < FR)
+        px = (x[vis] + 6) * SS; py = (y[vis] + 6) * SS
+        tt = (y[vis] / FS)[:, None]; col = (c_b + (c_a - c_b) * (1 - tt)).astype(np.uint8)
+        if os.environ.get('CAMPO_DEBUG'): col = np.where((capa[vis] < 0)[:, None], np.array([255, 60, 60]), np.array([60, 140, 255])).astype(np.uint8)
+        ca_ = np.zeros((bh * SS, bw * SS, 3), np.uint8); ma_ = np.zeros((bh * SS, bw * SS), np.uint8); rr = int(math.ceil(r_px))
+        ix0, iy0 = np.rint(px).astype(int), np.rint(py).astype(int)
+        for dy in range(-rr, rr + 1):
+            for dx in range(-rr, rr + 1):
+                if dx * dx + dy * dy > r_px * r_px: continue
+                xx, yy = ix0 + dx, iy0 + dy; ok = (xx >= 0) & (xx < bw * SS) & (yy >= 0) & (yy < bh * SS)
+                ca_[yy[ok], xx[ok]] = col[ok]; ma_[yy[ok], xx[ok]] = 255
+        cimg = Image.fromarray(ca_).resize((bw, bh), Image.LANCZOS)
+        colr = np.asarray(cimg, dtype=np.float32) / 255
+        cov = np.asarray(Image.fromarray(ma_).resize((bw, bh), Image.LANCZOS), dtype=np.float32)[..., None] / 255
+        out = base.copy(); sub = out[box[1]:box[3], box[0]:box[2]]; sub[:] = sub * (1 - cov) + colr * 255
+        if a.brillo > 0:
+            g1 = np.asarray(cimg.filter(ImageFilter.GaussianBlur(4)), dtype=np.float32); g2 = np.asarray(cimg.filter(ImageFilter.GaussianBlur(14)), dtype=np.float32)
+            sub += (g1 * 3 + g2 * 8) * (a.brillo / 100)
+        return (np.clip(out, 0, 255) + .5).astype(np.uint8)
+
+    if a.preview:
+        Image.fromarray(fotograma(int(total * a.preview_t))).save("preview.png"); print("preview.png"); return
+    salida = a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
+           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "veryslow", "-crf", str(a.crf), "-tune", "grain",
+           "-profile:v", "high", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", salida]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    for i in range(total):
+        p.stdin.write(fotograma(i).tobytes())
+        if i % a.fps == 0: print(f"\r{i // a.fps}/{int(a.seg)} s", end="", flush=True)
+    p.stdin.close(); p.wait(); print(f"\nlisto: {salida} ({W}x{H}, {a.fps} fps, {a.seg:g} s)")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "cono_invertido", "galaxia", "tornado", "saturno", "agujero_negro",
@@ -1343,7 +1446,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
+                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS)
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -1367,11 +1470,13 @@ def main():
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
+    ap.add_argument("--pausa", type=float, default=None, help="campo_*: segundos de pausa donde todo se congela y la figura desaparece (0 = sin pausa)")
     ap.add_argument("--salida", default=None)
     ap.add_argument("--preview", action="store_true", help="solo guarda un PNG de control")
     ap.add_argument("--preview-t", type=float, default=1 / 7, help="momento del preview, 0 a 1")
     a = ap.parse_args()
 
+    if a.forma in CAMPOS: return render_campo(a)
     rng = np.random.default_rng(a.semilla)
     pts = formas(a.forma, a.puntos, rng, a.palabra)
     fijo = pts[:, 3] > .5 if pts.shape[1] >= 4 else np.zeros(len(pts), dtype=bool)   # puntos fijos en pantalla (no giran)
