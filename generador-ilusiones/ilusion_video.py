@@ -757,24 +757,24 @@ def _cilindro_partido(n, rng):
 
 
 def _flechas_ciclo(n, rng):
-    """Dos cintas de media vuelta (dorada delante, violeta detras) con punta de flecha, medidas sobre el video de referencia.
-    Sin tapas: solo bordes brillantes y puntos tenues en las cintas, por eso se ve a traves hacia el fondo y el techo."""
-    Hh, Hb, L, SPAN = .49, .95, .62, math.radians(170); TE = math.radians(66); m = round(n / 2); r = rng.random; g = []
+    """Dos cintas de 152 grados (dorada y violeta) con punta de flecha, medidas cuadro por cuadro sobre el video de referencia.
+    Sin tapas: bordes gruesos y brillantes, puntos tenues en las cintas y en las puntas, y un hueco de 28 grados entre una flecha y la otra."""
+    Hh, Hb, L, SPAN = .49, .93, .65, math.radians(152); TE = math.radians(62); m = round(n / 2); r = rng.random; g = []
     tg = np.array([math.cos(TE), 0, -math.sin(TE)]); P = lambda t, y: np.array([math.sin(t), y, math.cos(t)])
-    A, B, tip = P(TE, -Hb), P(TE, Hb), P(TE, 0) + tg * L
+    A, B, tip = P(TE, -Hb), P(TE, Hb), P(TE + math.radians(40), 0)      # la punta queda sobre el cilindro, 40 grados mas adelante
     for _ in range(m):
-        q = r(); br = 1.0
-        if q < .36: p = P(TE - SPAN * r(), (r() * 2 - 1) * Hh); br = .8                        # cinta: puntos sueltos y tenues
-        elif q < .52: p = P(TE - SPAN * r(), Hh)                                                  # borde de arriba
-        elif q < .68: p = P(TE - SPAN * r(), -Hh)                                                 # borde de abajo
-        elif q < .70: p = P(TE - SPAN, (r() * 2 - 1) * Hh)                                        # arranque de la cinta
-        elif q < .80: u = r(); p = A + (B - A) * u                                                # base de la punta
-        elif q < .90: u = r(); s_ = (A, B)[r() < .5]; p = s_ + (tip - s_) * u                    # lados de la punta
+        q = r(); br = 1.0; sg = .0045
+        if q < .60: p = P(TE - SPAN * r(), (r() * 2 - 1) * Hh); br = .8                        # cinta: puntos tenues
+        elif q < .68: p = P(TE - SPAN * r(), Hh)                                                  # borde grueso de arriba
+        elif q < .76: p = P(TE - SPAN * r(), -Hh)                                                 # borde grueso de abajo
+        elif q < .79: p = P(TE - SPAN, (r() * 2 - 1) * Hh)                                        # arranque de la cinta
+        elif q < .84: u = r(); p = A + (B - A) * u                                                # base de la punta
+        elif q < .88: u = r(); s_ = (A, B)[r() < .5]; p = s_ + (tip - s_) * u; sg = .0025       # lados de la punta, mas finos
         else:
             u, v = r(), r()
             if u + v > 1: u, v = 1 - u, 1 - v
-            p = A + (B - A) * u + (tip - A) * v; br = .8                                          # relleno tenue de la punta
-        g.append(np.append(p + rng.normal(size=3) * (.006 if br > .9 else .004), br))
+            p = A + (B - A) * u + (tip - A) * v; br = .8                                          # relleno de la punta (misma densidad que la cinta)
+        g.append(np.append(p + rng.normal(size=3) * sg, br))
     g = np.array(g); o = np.zeros((len(g), 7)); o[:, :3] = g[:, :3]; o[:, 4] = 1; o[:, 5] = 1; o[:, 6] = g[:, 3]
     p2 = np.zeros((len(g), 7)); p2[:, :3] = -g[:, :3]; p2[:, 5] = 1; p2[:, 6] = g[:, 3]
     return np.vstack([o, p2])
@@ -1426,9 +1426,19 @@ def main():
         al = np.clip(1 - dep * .7 * (1 - z2) / 2, .08, 1)
         if brillo_pt is not None: al = al * brillo_pt
         pre = (cols * al[:, None]).astype(np.uint8)
-        for k in range(len(px)):
-            e = (px[k] - r[k], py[k] - r[k], px[k] + r[k], py[k] + r[k])
-            d.ellipse(e, fill=tuple(int(v) for v in pre[k])); dm.ellipse(e, fill=int(al[k] * 255))
+        if a.profundidad == 0 and len(px) > 12000:      # muchos puntos del mismo tamano: se pegan todos juntos con numpy (mucho mas rapido)
+            ca_ = np.asarray(img).copy(); ma_ = np.asarray(mk).copy(); rr = int(math.ceil(r[0]))
+            ix0, iy0 = np.rint(px).astype(int), np.rint(py).astype(int); v8 = (al * 255).astype(np.uint8)
+            for dy in range(-rr, rr + 1):
+                for dx in range(-rr, rr + 1):
+                    if dx * dx + dy * dy > r[0] * r[0]: continue
+                    xx, yy = ix0 + dx, iy0 + dy; ok = (xx >= 0) & (xx < bw * SS) & (yy >= 0) & (yy < bh * SS)
+                    ca_[yy[ok], xx[ok]] = pre[ok]; ma_[yy[ok], xx[ok]] = v8[ok]
+            img = Image.fromarray(ca_); mk = Image.fromarray(ma_)
+        else:
+            for k in range(len(px)):
+                e = (px[k] - r[k], py[k] - r[k], px[k] + r[k], py[k] + r[k])
+                d.ellipse(e, fill=tuple(int(v) for v in pre[k])); dm.ellipse(e, fill=int(al[k] * 255))
         cimg = img.resize((bw, bh), Image.LANCZOS)
         col = np.asarray(cimg, dtype=np.float32) / 255
         cov = np.asarray(mk.resize((bw, bh), Image.LANCZOS), dtype=np.float32)[..., None] / 255

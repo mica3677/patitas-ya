@@ -125,7 +125,7 @@
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
-  <input type="range" id="n" min="300" max="20000" step="100" value="2500">
+  <input type="range" id="n" min="300" max="60000" step="100" value="2500">
   <label>Tamaño del punto <span id="vS"></span></label>
   <input type="range" id="s" min="1" max="8" step="0.5" value="3">
   <label>Velocidad (vueltas/min) <span id="vV"></span></label>
@@ -1002,17 +1002,17 @@ const shapes = {
     return out;
   },
   cycleArrows(n){  // dos cintas de media vuelta con punta de flecha (dorada delante, violeta detrás), sin tapas: bordes vivos y puntos tenues
-    const Hh = .49, Hb = .95, L = .62, SPAN = 170*Math.PI/180, TE = 66*Math.PI/180, tg = [Math.cos(TE), 0, -Math.sin(TE)], P = (t, y) => [Math.sin(t), y, Math.cos(t)],
-      A = P(TE, -Hb), B = P(TE, Hb), c0 = P(TE, 0), tip = [c0[0] + tg[0]*L, 0, c0[2] + tg[2]*L], m = Math.round(n/2), g = [], mix = (s, e, u) => [0, 1, 2].map(k => s[k] + (e[k] - s[k])*u);
-    for (let i = 0; i < m; i++){ const q = rnd(); let p, br = 1;
-      if (q < .36){ p = P(TE - SPAN*rnd(), (rnd()*2 - 1)*Hh); br = .8; }
-      else if (q < .52) p = P(TE - SPAN*rnd(), Hh);
-      else if (q < .68) p = P(TE - SPAN*rnd(), -Hh);
-      else if (q < .70) p = P(TE - SPAN, (rnd()*2 - 1)*Hh);
-      else if (q < .80) p = mix(A, B, rnd());
-      else if (q < .90) p = mix(rnd() < .5 ? A : B, tip, rnd());
+    const Hh = .49, Hb = .93, SPAN = 152*Math.PI/180, TE = 62*Math.PI/180, tg = [Math.cos(TE), 0, -Math.sin(TE)], P = (t, y) => [Math.sin(t), y, Math.cos(t)],
+      A = P(TE, -Hb), B = P(TE, Hb), c0 = P(TE, 0), tip = P(TE + 40*Math.PI/180, 0), m = Math.round(n/2), g = [], mix = (s, e, u) => [0, 1, 2].map(k => s[k] + (e[k] - s[k])*u);
+    for (let i = 0; i < m; i++){ const q = rnd(); let p, br = 1, s = .0045;
+      if (q < .60){ p = P(TE - SPAN*rnd(), (rnd()*2 - 1)*Hh); br = .8; }
+      else if (q < .68) p = P(TE - SPAN*rnd(), Hh);
+      else if (q < .76) p = P(TE - SPAN*rnd(), -Hh);
+      else if (q < .79) p = P(TE - SPAN, (rnd()*2 - 1)*Hh);
+      else if (q < .84) p = mix(A, B, rnd());
+      else if (q < .88){ p = mix(rnd() < .5 ? A : B, tip, rnd()); s = .0025; }
       else { let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } p = [0, 1, 2].map(k => A[k] + (B[k] - A[k])*u + (tip[k] - A[k])*v); br = .8; }
-      const s = br > .9 ? .006 : .004; g.push([p[0] + gauss()*s, p[1] + gauss()*s, p[2] + gauss()*s, br]); }
+      g.push([p[0] + gauss()*s, p[1] + gauss()*s, p[2] + gauss()*s, br]); }
     return g.map(p => [p[0], p[1], p[2], 0, 1, 1, p[3]]).concat(g.map(p => [-p[0], -p[1], -p[2], 0, 0, 1, p[3]]));
   },
   helix(n){
@@ -1158,7 +1158,7 @@ $('shape').addEventListener('input', () => {                 // la pirámide del
 });
 $('shape').addEventListener('input', () => {                 // las flechas en cilindro del video: valores medidos cuadro por cuadro
   if ($('shape').value !== 'cycleArrows') return;
-  setV('n', Math.min(+$('n').max || 20000, 20000)); setV('s', 2); setV('v', 8); setV('t', 27); setV('d', 0); setV('z', 42.6); setV('b', 0); setV('e', 0); setV('r', 15); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
+  setV('n', 30000); setV('s', 2); setV('v', 8); setV('t', 27); setV('d', 0); setV('z', 42.6); setV('b', 0); setV('e', 0); setV('r', 15); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
   applyPalette(PALETAS['Oro y violeta']); $('ca').value = '#f0b323'; $('cb').value = '#6c5ce7'; $('cbg').value = '#000000'; $('top').value = ''; $('bot').value = ''; labels();
   $('msg').textContent = 'Ajustes cargados para copiar el video del cilindro con flechas: 8 vueltas por minuto, 15 s (cierra la vuelta). Sin texto.';
 });
