@@ -1476,11 +1476,16 @@ def _estimulo(nombre, S=2):
     return np.asarray(im, dtype=np.float32), np.asarray(mk, dtype=np.float32)[..., None] / 255
 
 
+def destellos(semilla):
+    """Momentos (segundos) en que el punto central cambia de color: la gente los cuenta. Lo usan el video y el audio."""
+    r = np.random.default_rng(semilla + 50); n = int(r.integers(3, 6)); return [round(float(x), 2) for x in np.linspace(1.8, 7.5, n) + r.uniform(-.25, .25, n)]
+
+
 def render_residual(a):
     """Test de imagen residual en tres tiempos: mirar el punto (con animacion y cuenta), blanco, y revelacion de los colores reales."""
-    T2, T3 = 5.0, 2.5; T1 = max(6.0, a.seg - T2 - T3); total = int(round((T1 + T2 + T3) * a.fps)); fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
+    T2, T3 = 5.0, 3.6; T1 = max(6.0, a.seg - T2 - T3); DST = destellos(a.semilla); NV = a.nivel; total = int(round((T1 + T2 + T3) * a.fps)); fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
     P = lambda n, sz: ImageFont.truetype(os.path.join(fp, n), sz)
-    fT, fS, fN, fL = P("Poppins-ExtraBold.ttf", 66), P("SpaceMono-Regular.ttf", 38), P("Poppins-ExtraBold.ttf", 170), P("Poppins-SemiBold.ttf", 44)
+    fT, fS, fN, fL, fB = P("Poppins-ExtraBold.ttf", 66), P("SpaceMono-Regular.ttf", 38), P("Poppins-ExtraBold.ttf", 170), P("Poppins-SemiBold.ttf", 44), P("SpaceMono-Regular.ttf", 28)
     est, mk = _estimulo(a.forma); cx, cy = W / 2, H * .5
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32); rad = np.hypot((xx - cx) / W, (yy - cy) / H * .75)
     fondo = (np.array([16, 26, 46], np.float32) * np.clip(1 - rad * 1.7, 0, 1)[..., None] ** 1.5 + np.array([2, 3, 8], np.float32)).astype(np.float32)
@@ -1496,8 +1501,8 @@ def render_residual(a):
         d = ImageDraw.Draw(im, "RGBA")
         for j, l in enumerate(envolver(d, t, f, W * ancho)): d.text((W / 2, y + j * interl), l, font=f, fill=col + (alpha,), anchor="ms")
     def ease(u): u = min(1, max(0, u)); return u * u * (3 - 2 * u)
-    SUBS = [(.3, 2.5, "Mira el punto blanco del centro."), (2.9, 3.9, "No parpadees."), (4.2, 5.6, "Sigue mirando el punto."), (5.8, 8.35, "Tus ojos se están cansando de estos colores."), (8.35, 9.0, "Ya casi."),
-            (9.3, 10.6, "Ahora mira el blanco."), (11.0, 11.8, "¿Ves la bandera?"), (12.5, 14.4, "Tu cerebro la está inventando."), (14.6, 16.3, "Los colores no estaban ahí.")]
+    SUBS = [(.3, 2.6, "Mira el punto blanco del centro."), (2.8, 5.4, "No parpadees."), (5.6, 8.3, "Sigue mirando el punto."), (8.3, 9.0, "Ya casi."),
+            (9.3, 11.0, "Mira el punto negro."), (11.6, 13.4, "¿Ves la bandera?"), (13.5, 14.0, "")]
     def _subtitulo(t):
         for t0, t1, tx in SUBS:
             if t0 <= t <= t1: return tx, ease((t - t0) / .25) * ease((t1 - t) / .25)
@@ -1516,13 +1521,21 @@ def render_residual(a):
             prog = t / T1; rr = 46
             d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(255, 255, 255, 60), width=4)               # anillo de progreso alrededor del punto
             d.arc((cx - rr, cy - rr, cx + rr, cy + rr), -90, -90 + 360 * prog, fill=(255, 255, 255, 235), width=5)
-            pul = 1 + .18 * math.sin(2 * math.pi * t / 1.2); d.ellipse((cx - 15 * pul, cy - 15 * pul, cx + 15 * pul, cy + 15 * pul), fill=(0, 0, 0, 255)); d.ellipse((cx - 10 * pul, cy - 10 * pul, cx + 10 * pul, cy + 10 * pul), fill=(255, 255, 255, 255))
+            pul = 1 + .18 * math.sin(2 * math.pi * t / 1.2); fl = max([max(0, 1 - (t - x) / .32) for x in DST if 0 <= t - x <= .32] or [0])      # destello del punto: se pone magenta un instante
+            d.ellipse((cx - 15 * pul, cy - 15 * pul, cx + 15 * pul, cy + 15 * pul), fill=(0, 0, 0, 255)); col = (255, int(255 - 195 * fl), int(255 - 135 * fl)); d.ellipse((cx - 10 * pul, cy - 10 * pul, cx + 10 * pul, cy + 10 * pul), fill=col + (255,))
+            for x in DST:
+                if 0 <= t - x <= .5: q = (t - x) / .5; rb = 18 + 70 * q; d.ellipse((cx - rb, cy - rb, cx + rb, cy + rb), outline=(255, 70, 140, int(230 * (1 - q) ** 2)), width=5)
             texto(im, 330, a.arriba, fT, (255, 255, 255), interl=82)
             fr = (t % 1.0)                                                                                   # onda que sale del punto en cada segundo (acompana al tic del audio)
             if t >= 1.0: rp = 46 + 150 * fr; d.ellipse((cx - rp, cy - rp, cx + rp, cy + rp), outline=(255, 255, 255, int(150 * (1 - fr) ** 2)), width=3)
             sub = _subtitulo(t)
             if sub: d.text((W / 2, 330 + 82 * (len(envolver(d, a.arriba, fT, W * .84)) - 1) + 78), sub[0], font=fS, fill=(170, 200, 255, int(235 * sub[1])), anchor="ms")
-            n = str(int(math.ceil(T1 - t))); d.text((W / 2, 1500), n, font=fN, fill=(255, 255, 255, 255), anchor="ms")
+            n = str(int(math.ceil(T1 - t))); d.text((W / 2, 1480), n, font=fN, fill=(255, 255, 255, 255), anchor="ms")
+            d.text((W / 2, 1590), "CONCENTRACIÓN", font=fB, fill=(170, 200, 255, 220), anchor="ms")                     # medidor que se va llenando
+            d.rounded_rectangle((W / 2 - 330, 1620, W / 2 + 330, 1640), radius=10, fill=(255, 255, 255, 40))
+            wv = 660 * min(1, t / T1)
+            for xg in range(0, int(wv), 4): q = xg / 660; d.rectangle((W / 2 - 330 + xg, 1620, W / 2 - 330 + xg + 4, 1640), fill=(int(60 + 195 * q), int(220 - 130 * q), 255 - int(60 * q), 255))
+            d.text((W / 2, 200), "TEST DE CONCENTRACIÓN · NIVEL %d" % NV, font=fB, fill=(120, 150, 210, 230), anchor="ms")
             return im.tobytes()
         if t < T1 + T2:                                                                                         # --- 2) blanco
             u = t - T1; im = Image.new("RGB", (W, H), (255, 255, 255)); d = ImageDraw.Draw(im, "RGBA")
@@ -1544,8 +1557,9 @@ def render_residual(a):
             lay = Image.new("RGBA", im.size, (0, 0, 0, 0)); lay.paste(pim.convert("RGBA"), pos); lay.putalpha(lay.getchannel("A").point(lambda v: int(v * k_))); im = Image.alpha_composite(im.convert("RGBA"), lay).convert("RGB")
             d = ImageDraw.Draw(im, "RGBA"); d.text((W / 2, yc + pim.height / 2 + 62), etq, font=fL, fill=(170, 200, 255, int(255 * k_)), anchor="ms")
         d.polygon([(W / 2 - 34, 1040), (W / 2 + 34, 1040), (W / 2, 1090)], fill=(255, 255, 255, int(255 * k_)))
-        sub = _subtitulo(t)
-        if sub: d.text((W / 2, 1640), sub[0], font=fS, fill=(170, 200, 255, int(235 * sub[1])), anchor="ms")
+        k2 = ease((u - 1.0) / .5)
+        d.text((W / 2, 1665), "El punto cambió %d %s" % (len(DST), "vez" if len(DST) == 1 else "veces"), font=fL, fill=(255, 255, 255, int(255 * k2)), anchor="ms")
+        d.text((W / 2, 1730), "¿Acertaste? Comenta tu número", font=fS, fill=(170, 200, 255, int(235 * k2)), anchor="ms")
         return im.tobytes()
     if a.preview: Image.frombytes("RGB", (W, H), cuadro(int(a.preview_t * total))).save("preview.png"); print("preview.png"); return
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
@@ -1634,6 +1648,7 @@ def main():
     ap.add_argument("--pausa", type=float, default=None, help="campo_*: segundos de pausa a los 62%% del video donde todo se congela y la figura desaparece (nada = sin pausa)")
     ap.add_argument("--revela", type=float, default=None, help="campo_*: segundos que tarda el ruido en ordenarse (0 o nada = la figura esta desde el principio)")
     ap.add_argument("--audio", default=None, help="imagen residual: archivo de audio (wav/mp3) que se mezcla al video")
+    ap.add_argument("--nivel", type=int, default=1, help="imagen residual: numero de nivel del test de concentracion")
     ap.add_argument("--salida", default=None)
     ap.add_argument("--preview", action="store_true", help="solo guarda un PNG de control")
     ap.add_argument("--preview-t", type=float, default=1 / 7, help="momento del preview, 0 a 1")
