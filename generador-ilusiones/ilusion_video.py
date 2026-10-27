@@ -859,6 +859,24 @@ def _cajas(n, boxes, rng):
     return np.array(out)
 
 
+def _piramide_video(n, rng):
+    """La piramide de base cuadrada del video 'triangulo negro': eje de giro a media altura, proporcion 4:3, fase inicial 10 grados."""
+    R, G = rng.random, rng.normal; s_, hh = .643, .859; ph = math.radians(10)
+    V0 = np.array([[0, 0, hh], [-s_, -s_, -hh], [s_, -s_, -hh], [s_, s_, -hh], [-s_, s_, -hh]])
+    V = np.c_[V0[:, 0] * math.cos(ph) + V0[:, 2] * math.sin(ph), V0[:, 1], -V0[:, 0] * math.sin(ph) + V0[:, 2] * math.cos(ph)]
+    E = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 3), (3, 4), (4, 1)]; F = [(0, 1, 2), (0, 2, 3), (0, 3, 4), (0, 4, 1), (1, 2, 3), (1, 3, 4)]
+    LN = np.array([np.linalg.norm(V[a] - V[b]) for a, b in E]); AR = np.array([np.linalg.norm(np.cross(V[b] - V[a], V[c] - V[a])) / 2 for a, b, c in F])
+    cl, ca_ = np.cumsum(LN), np.cumsum(AR); out = []
+    for _ in range(n):
+        if R() < .8:
+            a, b = E[min(int(np.searchsorted(cl, R() * cl[-1])), len(E) - 1)]; out.append(list(V[a] + (V[b] - V[a]) * R() + rng.normal(size=3) * .004))
+        else:
+            a, b, c = F[min(int(np.searchsorted(ca_, R() * ca_[-1])), len(F) - 1)]; u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            out.append(list(V[a] + (V[b] - V[a]) * u + (V[c] - V[a]) * v))
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -1048,6 +1066,7 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "cruz": return _cajas(n, [(0, 0, 0, .75, .14, .14), (0, 0, 0, .14, .75, .14), (0, 0, 0, .14, .14, .75)], rng)
     if nombre == "marco": return _prisma(n, [[(-.8, -.8), (.8, -.8), (.8, .8), (-.8, .8)], [(-.5, -.5), (-.5, .5), (.5, .5), (.5, -.5)]], .3, 1., rng)
     if nombre == "torre_escalonada": return _cajas(n, [(0, -.7, 0, .75, .18, .75), (0, -.34, 0, .55, .18, .55), (0, .02, 0, .38, .18, .38), (0, .38, 0, .2, .18, .2), (0, .7, 0, .09, .14, .09)], rng)
+    if nombre == "piramide_video": return _piramide_video(n, rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -1062,8 +1081,16 @@ def envolver(draw, texto, f, ancho):
     return lineas + ([cur] if cur else [])
 
 
-def capa_texto(arriba, abajo):
+def capa_texto(arriba, abajo, diseno="clasico"):
     img = Image.new("L", (W, H), 0); d = ImageDraw.Draw(img)
+    if diseno == "triangulo":     # medido sobre el video: Space Mono 48,8 px (titulo) y 38,5 px cursiva (abajo)
+        carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
+        f1 = ImageFont.truetype(os.path.join(carpeta, "SpaceMono-Regular.ttf"), 48.8)
+        for i, l in enumerate(envolver(d, arriba, f1, W * .7)):
+            d.text((W / 2, 375 + i * 74), l, font=f1, fill=255, anchor="ms")
+        f2 = ImageFont.truetype(os.path.join(carpeta, "SpaceMono-Italic.ttf"), 38.5)
+        d.text((W / 2 + 1.5, 1500), abajo, font=f2, fill=255, anchor="ms")
+        return np.asarray(img, dtype=np.float32) / 255
     f1 = font(FONTS_B, 52)
     for i, l in enumerate(envolver(d, arriba, f1, W * .8)):
         d.text((W / 2, 200 + i * 72), l, font=f1, fill=255, anchor="mt")
@@ -1081,7 +1108,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "prisma_triangular", "prisma_hexagonal", "casita", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
+                                                  "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -1100,6 +1127,7 @@ def main():
     ap.add_argument("--brillo", type=float, default=0, help="0-100, halo de luz alrededor de los puntos")
     ap.add_argument("--estrellas", type=int, default=0, help="cantidad de estrellitas de fondo")
     ap.add_argument("--palabra", default="USA", help="texto para la forma texto3d")
+    ap.add_argument("--diseno", default="clasico", choices=["clasico", "triangulo"], help="triangulo = texto y posicion como el video del triangulo")
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
@@ -1114,7 +1142,7 @@ def main():
     grupo = pts[:, 4] if pts.shape[1] >= 5 else None
     giro = pts[:, 5] if pts.shape[1] >= 6 else np.ones(len(pts))                       # cada grupo puede girar a su propio ritmo (1, -1, 2...)                                   # objetos de dos colores: grupo 1 = color de arriba, 0 = color de abajo
     pts = pts[:, :3]
-    texto = capa_texto(a.arriba, a.abajo)
+    texto = capa_texto(a.arriba, a.abajo, a.diseno)
     pbg, ptx, pa, pb = PALETAS[a.paleta]
     c_bg, c_tx = rgb(a.fondo or pbg), rgb(a.texto or ptx)
     c_a = rgb(a.color or pa)
@@ -1134,7 +1162,7 @@ def main():
         eje = pts[:, 1] if np.ptp(pts[:, 1]) >= .5 else 1 - np.hypot(pts[:, 0], pts[:, 2])
     ty = (eje - eje.min()) / max(1e-9, np.ptp(eje))   # 0 = color de abajo, 1 = color de arriba
     cols = c_b + (c_a - c_b) * ty[:, None]
-    R = W * a.figura / 100; cy = H * .47
+    R = W * a.figura / 100; cy = H * (.5 if a.diseno == "triangulo" else .47)
     tilt = math.radians(a.inclinacion); ct, st = math.cos(tilt), math.sin(tilt)
     dep = a.profundidad / 100
     total = int(round(a.seg * a.fps))
