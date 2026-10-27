@@ -107,6 +107,12 @@
     <option value="jack">Cruz 3D</option>
     <option value="frame">Marco cuadrado</option>
     <option value="ziggurat">Torre escalonada</option>
+        <option value="arrows">Flechas de colores</option>
+    <option value="chain">Cadena de anillos</option>
+    <option value="stacker">Torre de aros de colores</option>
+    <option value="pencils">Lápices de colores</option>
+    <option value="rainbowStairs">Escalera de cubos de colores</option>
+    <option value="pinwheel">Aspas de colores</option>
     <option value="halves">Esfera partida en dos</option>
     <option value="bowls">Cuencos cruzados</option>
     <option value="cutplanet">Planeta cortado (capas)</option>
@@ -235,6 +241,7 @@ function boxesPts(n, boxes){             // varias cajas [cx,cy,cz,hx,hy,hz]: ar
     out.push([cx + p[0], cy + p[1], cz + p[2]]); }
   return out;
 }
+const rotY = (p, a) => [p[0]*Math.cos(a) + p[2]*Math.sin(a), p[1], -p[0]*Math.sin(a) + p[2]*Math.cos(a)];
 const shapes = {
   sphere(n){
     // meridianos y paralelos hechos de puntos, como en el video
@@ -946,6 +953,53 @@ const shapes = {
     }
     return out;
   },
+  arrows(n){       // seis flechas de colores en círculo, cada una de su color y a distinta altura
+    const ARW = [[-.07, -.3], [.07, -.3], [.07, .06], [.2, .06], [0, .4], [-.2, .06], [-.07, .06]], H = [1, .82, 1.12, .9, 1.06, .86], out = [], K = 6, R = .62;
+    for (let k = 0; k < K; k++){ const h = H[k], th = k*Math.PI/3 + .3, half = .35*1.9*h;
+      for (const p of prismPts(Math.round(n/K), [ARW], .03, 1.9*h)){ const w = rotY(p, th); out.push([w[0] + R*Math.sin(th), w[1] - .7 + half, w[2] + R*Math.cos(th), 0, k]); } }
+    return out;
+  },
+  chain(n){        // cadena de seis anillos enlazados, cada uno de su color
+    const out = [], K = 6, Rr = .22, sp = .27;
+    for (let i = 0; i < n; i++){ const k = i % K, t = rnd()*2*Math.PI, tt = rnd()*2*Math.PI, r = Rr + Math.cos(tt)*.018, y = (k - 2.5)*sp, c = r*Math.cos(t), s = r*Math.sin(t), q = Math.sin(tt)*.018;
+      out.push(k % 2 ? [q, y + s, c, 0, k] : [c, y + s, q, 0, k]); }
+    return out;
+  },
+  stacker(n){      // torre de aros de juguete: seis aros inclinados sobre un palo
+    const out = [], K = 6, tilt = [.12, -.1, .15, -.14, .1, -.12], rad = [.8, .68, .56, .45, .35, .26];
+    for (let i = 0; i < n; i++){
+      if (rnd() < .08){ out.push([gauss()*.018, -.95 + rnd()*1.9, gauss()*.018, 0, 2]); continue; }
+      const k = Math.floor(rnd()*K), u = rnd()*2*Math.PI, v = rnd()*2*Math.PI, R = rad[k], rr = R + .085*Math.cos(v), x = rr*Math.cos(u), y = .085*Math.sin(v), z = rr*Math.sin(u), a = tilt[k];
+      out.push([x, y*Math.cos(a) - z*Math.sin(a) - .72 + k*.27, y*Math.sin(a) + z*Math.cos(a), 0, k]); }
+    return out;
+  },
+  pencils(n){      // seis lápices de colores en un atado, de distinta altura
+    const out = [], K = 6, r = .085, TIP = .2, TOP = [.6, .42, .7, .5, .66, .38], LEN = 1.3, RB = .19;
+    for (let i = 0; i < n; i++){ const k = i % K, a0 = k*Math.PI/3, cx = RB*Math.cos(a0), cz = RB*Math.sin(a0), top = TOP[k] - .15, bot = top - LEN, q = rnd(), j = Math.floor(rnd()*6), aj = j*Math.PI/3; let p;
+      if (q < .42) p = [cx + r*Math.cos(aj), bot + rnd()*LEN, cz + r*Math.sin(aj)];                                                         // aristas del cuerpo
+      else if (q < .56){ const b = rnd() < .5 ? bot : top, u = rnd(), a2 = (j + 1)*Math.PI/3; p = [cx + r*(Math.cos(aj) + (Math.cos(a2) - Math.cos(aj))*u), b, cz + r*(Math.sin(aj) + (Math.sin(a2) - Math.sin(aj))*u)]; }
+      else if (q < .72){ const u = rnd(); p = [cx + r*Math.cos(aj)*(1 - u), top + TIP*u, cz + r*Math.sin(aj)*(1 - u)]; }                       // punta de madera
+      else if (q < .9){ const u = rnd(), a2 = (j + 1)*Math.PI/3; p = [cx + r*(Math.cos(aj) + (Math.cos(a2) - Math.cos(aj))*u), bot + rnd()*LEN, cz + r*(Math.sin(aj) + (Math.sin(a2) - Math.sin(aj))*u)]; }
+      else { const u = .7 + rnd()*.3; p = [cx + gauss()*.004 + r*Math.cos(aj)*(1 - u)*.4, top + TIP*u, cz + gauss()*.004 + r*Math.sin(aj)*(1 - u)*.4]; }   // mina
+      out.push([p[0], p[1], p[2], 0, k]); }
+    return out;
+  },
+  rainbowStairs(n){ // escalera de caracol de doce cubos, de seis colores que se repiten
+    const out = [], S = 12, h = .13;
+    for (let i = 0; i < n; i++){ const s = Math.floor(rnd()*S), a = s*.62, c = [.52*Math.sin(a), -.78 + s*.14, .52*Math.cos(a)], k = Math.floor(rnd()*3); let p = [0, 0, 0];
+      if (rnd() < .6){ p = [(rnd() < .5 ? -1 : 1)*h, (rnd() < .5 ? -1 : 1)*h, (rnd() < .5 ? -1 : 1)*h]; p[k] = (rnd()*2 - 1)*h; }
+      else { for (let m = 0; m < 3; m++) p[m] = (rnd()*2 - 1)*h; p[k] = (rnd() < .5 ? -1 : 1)*h; }
+      const w = rotY(p, a); out.push([c[0] + w[0], c[1] + w[1], c[2] + w[2], 0, s % 6]); }
+    return out;
+  },
+  pinwheel(n){     // molinete de seis aspas, cada una de su color y a distinta profundidad
+    const out = [], K = 6, R = .9;
+    for (let i = 0; i < n; i++){ const k = i % K, a0 = k*2*Math.PI/K, A = [0, 0], B = [R*Math.cos(a0), R*Math.sin(a0)], C = [.55*R*Math.cos(a0 + .75), .55*R*Math.sin(a0 + .75)], z = (k - 2.5)*.035; let p;
+      if (rnd() < .6){ const e = Math.floor(rnd()*3), P = [A, B, C], X = P[e], Y = P[(e + 1) % 3], t = rnd(); p = [X[0] + (Y[0] - X[0])*t, X[1] + (Y[1] - X[1])*t]; }
+      else { let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } p = [(B[0] - A[0])*u + (C[0] - A[0])*v, (B[1] - A[1])*u + (C[1] - A[1])*v]; }
+      out.push([p[0] + gauss()*.003, p[1] + gauss()*.003, z, 0, k]); }
+    return out;
+  },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -994,18 +1048,24 @@ const PALETAS = {
   'Plata':       {bg:'#000000', tx:'#ffffff', a:'#ffffff', b:'#8fa0b8'},
   'Halloween':   {bg:'#0a0500', tx:'#ffd9a0', a:'#ffb347', b:'#ff5e00'},
   'Navidad':     {bg:'#04100a', tx:'#ffffff', a:'#ff5a5a', b:'#3ddc84'},
-  'USA':         {bg:'#040818', tx:'#ffffff', a:'#ff4155', b:'#2f6bff'}
+  'USA':         {bg:'#040818', tx:'#ffffff', a:'#ff4155', b:'#2f6bff'},
+  'Multicolor':  {bg:'#000000', tx:'#ffffff', a:'#f4c542', b:'#2ec4f0', multi:['#f4c542','#58e04a','#8f4cf0','#ff3b3b','#ff7a1a','#2ec4f0']},
+  'Arcoíris':    {bg:'#000000', tx:'#ffffff', a:'#ff3b3b', b:'#9b5cff', multi:['#ff3b3b','#ff9a1f','#ffe14a','#4cdc6a','#3aa8ff','#9b5cff']}
 };
+let curMulti = null;      // paleta de seis colores (una para cada pieza), o null
 function applyPalette(p){
-  $('cbg').value = p.bg; $('ctt').value = p.tx; $('ca').value = p.a; $('cb').value = p.b; $('grad').checked = p.a !== p.b;
+  curMulti = p.multi || null; $('cbg').value = p.bg; $('ctt').value = p.tx; $('ca').value = p.a; $('cb').value = p.b; $('grad').checked = p.a !== p.b;
 }
 for (const [name, p] of Object.entries(PALETAS)){
   const b = document.createElement('button'); b.type = 'button'; b.textContent = name;
-  b.style.borderLeftColor = p.a; b.onclick = () => applyPalette(p); $('presets').appendChild(b);
+  if (p.multi){ b.style.borderLeftColor = 'transparent'; b.style.background = 'linear-gradient(180deg,' + p.multi.join(',') + ') left / 14px 100% no-repeat, #000'; } else b.style.borderLeftColor = p.a;
+  b.onclick = () => applyPalette(p); $('presets').appendChild(b);
 }
 const hex2rgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
-const NB = 24; let bks = [];
+const NB = 26; let bks = [];
+['ca', 'cb', 'grad'].forEach(i => $(i).addEventListener('input', () => { curMulti = null; }));
 function colores(){
+  if (curMulti) return Array.from({length: NB}, (_, k) => 'rgb(' + hex2rgb(curMulti[Math.round(k/5)]).join(',') + ')');   // grupo g -> cubo 5g -> color g
   const A = hex2rgb($('ca').value), B = $('grad').checked ? hex2rgb($('cb').value) : A;
   return Array.from({length: NB}, (_,k) => { const t = k/(NB-1);   // k=0 es lo más bajo: color B
     return 'rgb(' + A.map((c,i) => Math.round(B[i] + (c-B[i])*t)).join(',') + ')'; });
@@ -1092,7 +1152,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

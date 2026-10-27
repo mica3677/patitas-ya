@@ -36,6 +36,8 @@ PALETAS = {
     "halloween": ("#0a0500", "#ffd9a0", "#ffb347", "#ff5e00"),
     "navidad":  ("#04100a", "#ffffff", "#ff5a5a", "#3ddc84"),
     "usa":      ("#040818", "#ffffff", "#ff4155", "#2f6bff"),
+    "multicolor": ("#000000", "#ffffff", "#f4c542", "#2ec4f0", ["#f4c542", "#58e04a", "#8f4cf0", "#ff3b3b", "#ff7a1a", "#2ec4f0"]),   # seis colores: uno por pieza
+    "arcoiris": ("#000000", "#ffffff", "#ff3b3b", "#9b5cff", ["#ff3b3b", "#ff9a1f", "#ffe14a", "#4cdc6a", "#3aa8ff", "#9b5cff"]),
 }
 
 
@@ -1001,6 +1003,81 @@ def _hongo(n, rng):
     return np.array(out)
 
 
+def _rot_y(P, a):
+    P = np.asarray(P, dtype=float); c, s_ = math.cos(a), math.sin(a)
+    return np.c_[P[:, 0] * c + P[:, 2] * s_, P[:, 1], -P[:, 0] * s_ + P[:, 2] * c]
+
+
+def _flechas(n, rng):
+    ARW = [(-.07, -.3), (.07, -.3), (.07, .06), (.2, .06), (0, .4), (-.2, .06), (-.07, .06)]; H = [1, .82, 1.12, .9, 1.06, .86]; K, R = 6, .62; out = []
+    for k in range(K):
+        h = H[k]; th = k * math.pi / 3 + .3; half = .35 * 1.9 * h
+        w = _rot_y(_prisma(round(n / K), [ARW], .03, 1.9 * h, rng), th)
+        out.append(np.c_[w[:, 0] + R * math.sin(th), w[:, 1] - .7 + half, w[:, 2] + R * math.cos(th), np.zeros(len(w)), np.full(len(w), k)])
+    return np.vstack(out)
+
+
+def _cadena(n, rng):
+    R = rng.random; out = []; K, Rr, sp = 6, .22, .27
+    for i in range(n):
+        k = i % K; t = R() * 2 * math.pi; tt = R() * 2 * math.pi; r = Rr + math.cos(tt) * .018; y = (k - 2.5) * sp; c = r * math.cos(t); s_ = r * math.sin(t); q = math.sin(tt) * .018
+        out.append([q, y + s_, c, 0, k] if k % 2 else [c, y + s_, q, 0, k])
+    return np.array(out)
+
+
+def _torre_aros(n, rng):
+    R, G = rng.random, rng.normal; out = []; tilt = [.12, -.1, .15, -.14, .1, -.12]; rad = [.8, .68, .56, .45, .35, .26]
+    for _ in range(n):
+        if R() < .08: out.append([G() * .018, -.95 + R() * 1.9, G() * .018, 0, 2]); continue
+        k = int(R() * 6); u = R() * 2 * math.pi; v = R() * 2 * math.pi; rr = rad[k] + .085 * math.cos(v); x = rr * math.cos(u); y = .085 * math.sin(v); z = rr * math.sin(u); a = tilt[k]
+        out.append([x, y * math.cos(a) - z * math.sin(a) - .72 + k * .27, y * math.sin(a) + z * math.cos(a), 0, k])
+    return np.array(out)
+
+
+def _lapices(n, rng):
+    R, G = rng.random, rng.normal; out = []; K, r, TIP, LEN, RB = 6, .085, .2, 1.3, .19; TOP = [.6, .42, .7, .5, .66, .38]
+    for i in range(n):
+        k = i % K; a0 = k * math.pi / 3; cx, cz = RB * math.cos(a0), RB * math.sin(a0); top = TOP[k] - .15; bot = top - LEN; q = R(); j = int(R() * 6); aj = j * math.pi / 3; a2 = (j + 1) * math.pi / 3
+        lerp = lambda u: (cx + r * (math.cos(aj) + (math.cos(a2) - math.cos(aj)) * u), cz + r * (math.sin(aj) + (math.sin(a2) - math.sin(aj)) * u))
+        if q < .42: p = [cx + r * math.cos(aj), bot + R() * LEN, cz + r * math.sin(aj)]
+        elif q < .56:
+            x, z = lerp(R()); p = [x, bot if R() < .5 else top, z]
+        elif q < .72:
+            u = R(); p = [cx + r * math.cos(aj) * (1 - u), top + TIP * u, cz + r * math.sin(aj) * (1 - u)]
+        elif q < .9:
+            x, z = lerp(R()); p = [x, bot + R() * LEN, z]
+        else:
+            u = .7 + R() * .3; p = [cx + G() * .004 + r * math.cos(aj) * (1 - u) * .4, top + TIP * u, cz + G() * .004 + r * math.sin(aj) * (1 - u) * .4]
+        out.append(p + [0, k])
+    return np.array(out)
+
+
+def _escalera_cubos(n, rng):
+    R = rng.random; out = []; S_, h = 12, .13
+    for _ in range(n):
+        s_ = int(R() * S_); a = s_ * .62; c = (.52 * math.sin(a), -.78 + s_ * .14, .52 * math.cos(a)); k = int(R() * 3)
+        if R() < .6:
+            p = [(-1 if R() < .5 else 1) * h for _ in range(3)]; p[k] = (R() * 2 - 1) * h
+        else:
+            p = [(R() * 2 - 1) * h for _ in range(3)]; p[k] = (-1 if R() < .5 else 1) * h
+        w = _rot_y([p], a)[0]; out.append([c[0] + w[0], c[1] + w[1], c[2] + w[2], 0, s_ % 6])
+    return np.array(out)
+
+
+def _aspas(n, rng):
+    R, G = rng.random, rng.normal; out = []; K, Rr = 6, .9
+    for i in range(n):
+        k = i % K; a0 = k * 2 * math.pi / K; A = (0, 0); B = (Rr * math.cos(a0), Rr * math.sin(a0)); C = (.55 * Rr * math.cos(a0 + .75), .55 * Rr * math.sin(a0 + .75)); z = (k - 2.5) * .035
+        if R() < .6:
+            P = [A, B, C]; e = int(R() * 3); X, Y = P[e], P[(e + 1) % 3]; t = R(); p = [X[0] + (Y[0] - X[0]) * t, X[1] + (Y[1] - X[1]) * t]
+        else:
+            u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            p = [B[0] * u + C[0] * v, B[1] * u + C[1] * v]
+        out.append([p[0] + G() * .003, p[1] + G() * .003, z, 0, k])
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -1194,6 +1271,12 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "marco": return _prisma(n, [[(-.8, -.8), (.8, -.8), (.8, .8), (-.8, .8)], [(-.5, -.5), (-.5, .5), (.5, .5), (.5, -.5)]], .3, 1., rng)
     if nombre == "torre_escalonada": return _cajas(n, [(0, -.7, 0, .75, .18, .75), (0, -.34, 0, .55, .18, .55), (0, .02, 0, .38, .18, .38), (0, .38, 0, .2, .18, .2), (0, .7, 0, .09, .14, .09)], rng)
     if nombre == "piramide_video": return _piramide_video(n, rng)
+    if nombre == "flechas": return _flechas(n, rng)
+    if nombre == "cadena": return _cadena(n, rng)
+    if nombre == "torre_aros": return _torre_aros(n, rng)
+    if nombre == "lapices": return _lapices(n, rng)
+    if nombre == "escalera_cubos": return _escalera_cubos(n, rng)
+    if nombre == "aspas": return _aspas(n, rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -1235,7 +1318,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
+                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -1271,7 +1354,8 @@ def main():
     giro = pts[:, 5] if pts.shape[1] >= 6 else np.ones(len(pts))                       # cada grupo puede girar a su propio ritmo (1, -1, 2...)                                   # objetos de dos colores: grupo 1 = color de arriba, 0 = color de abajo
     pts = pts[:, :3]
     texto = capa_texto(a.arriba, a.abajo, a.diseno)
-    pbg, ptx, pa, pb = PALETAS[a.paleta]
+    pal = PALETAS[a.paleta]; pbg, ptx, pa, pb = pal[:4]
+    multi = [rgb(c) for c in pal[4]] if len(pal) > 4 and not (a.color or a.color2) else None      # paleta de seis colores
     c_bg, c_tx = rgb(a.fondo or pbg), rgb(a.texto or ptx)
     c_a = rgb(a.color or pa)
     c_b = rgb(a.color2) if a.color2 else (rgb(pb) if not a.color else c_a)
@@ -1289,7 +1373,7 @@ def main():
     else:
         eje = pts[:, 1] if np.ptp(pts[:, 1]) >= .5 else 1 - np.hypot(pts[:, 0], pts[:, 2])
     ty = (eje - eje.min()) / max(1e-9, np.ptp(eje))   # 0 = color de abajo, 1 = color de arriba
-    cols = c_b + (c_a - c_b) * ty[:, None]
+    cols = np.array(multi)[np.clip(np.rint(ty * 5).astype(int), 0, 5)] if multi is not None else c_b + (c_a - c_b) * ty[:, None]
     R = W * a.figura / 100; cy = H * (.5 if a.diseno == "triangulo" else .47)
     tilt = math.radians(a.inclinacion); ct, st = math.cos(tilt), math.sin(tilt)
     dep = a.profundidad / 100
