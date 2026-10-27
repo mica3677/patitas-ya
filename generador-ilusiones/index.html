@@ -99,6 +99,9 @@
     <option value="prismTri">Prisma triangular</option>
     <option value="prismHex">Prisma hexagonal</option>
     <option value="house">Casita 3D</option>
+        <option value="owl">Búho</option>
+    <option value="cat">Gatito</option>
+    <option value="mushroom">Hongo</option>
     <option value="ramp">Rampa</option>
     <option value="stairs">Escalera</option>
     <option value="jack">Cruz 3D</option>
@@ -850,24 +853,76 @@ const shapes = {
   },
   prismTri(n){ return prismPts(n, [[[-.5, .45], [-.5, -.45], [.55, 0]]], .45, 1.3); },
   prismHex(n){ return prismPts(n, [Array.from({length: 6}, (_, k) => [.6*Math.cos(k*Math.PI/3), .6*Math.sin(k*Math.PI/3)])], .45, 1.25); },
-  house(n){ return prismPts(n, [[[-.5, -.5], [.5, -.5], [.5, .15], [0, .65], [-.5, .15]]], .5, 1.2); },
-  ramp(n){ return prismPts(n, [[[-.6, -.4], [.6, -.4], [.6, .4]]], .5, 1.2); },
-  stairs(n){ return prismPts(n, [[[-.6, -.6], [.6, -.6], [.6, .6], [.3, .6], [.3, .3], [0, .3], [0, 0], [-.3, 0], [-.3, -.3], [-.6, -.3]]], .35, 1.15); },
-  jack(n){ return boxesPts(n, [[0, 0, 0, .75, .14, .14], [0, 0, 0, .14, .75, .14], [0, 0, 0, .14, .14, .75]]); },
-  frame(n){ return prismPts(n, [[[-.8, -.8], [.8, -.8], [.8, .8], [-.8, .8]], [[-.5, -.5], [-.5, .5], [.5, .5], [.5, -.5]]], .3, 1); },
-  ziggurat(n){ return boxesPts(n, [[0, -.7, 0, .75, .18, .75], [0, -.34, 0, .55, .18, .55], [0, .02, 0, .38, .18, .38], [0, .38, 0, .2, .18, .2], [0, .7, 0, .09, .14, .09]]); },
-  pyrVideo(n){     // la pirámide del video "triángulo negro": eje de giro a media altura, proporción 4:3, fase inicial 10°
-    const s = .643, hh = .859, ph = 10*Math.PI/180, rot = p => [p[0]*Math.cos(ph) + p[2]*Math.sin(ph), p[1], -p[0]*Math.sin(ph) + p[2]*Math.cos(ph)],
-      V = [[0, 0, hh], [-s, -s, -hh], [s, -s, -hh], [s, s, -hh], [-s, s, -hh]].map(rot),
-      E = [[0, 1], [0, 2], [0, 3], [0, 4], [1, 2], [2, 3], [3, 4], [4, 1]], F = [[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1], [1, 2, 3], [1, 3, 4]],
-      d3 = (a, b) => [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
-      LN = E.map(([a, b]) => Math.hypot(...d3(V[a], V[b]))),
-      AR = F.map(([a, b, c]) => { const u = d3(V[a], V[b]), v = d3(V[a], V[c]); return Math.hypot(u[1]*v[2] - u[2]*v[1], u[2]*v[0] - u[0]*v[2], u[0]*v[1] - u[1]*v[0])/2; }),
-      pick = W_ => { let u = rnd()*W_.reduce((x, y) => x + y, 0), k = 0; while (u > W_[k] && k < W_.length - 1){ u -= W_[k]; k++; } return k; }, out = [];
-    for (let i = 0; i < n; i++){
-      if (rnd() < .8){ const [a, b] = E[pick(LN)], u = rnd(); out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + gauss()*.0022)); }       // aristas: líneas de puntos apretados
-      else { const [a, b, c] = F[pick(AR)]; let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; }
-        out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + (V[c][k] - V[a][k])*v)); }                                                    // caras: puntos sueltos
+  house(n){        // casita con puerta, ventanas, chimenea y un poco de humo: la casa de un color y los detalles de otro
+    const out = [], Wd = .6, Lh = .6, E = .09, Rg = .69, K = .9, SH = .23,
+      fin = (p, g) => out.push([p[0]*K, (p[1] - SH)*K, p[2]*K, 0, g]),
+      poly = [[-Wd, -.69], [Wd, -.69], [Wd, E], [0, Rg], [-Wd, E]],
+      win = (cx, cy, s, pl, sg) => { const h = s/2; let u, v;
+        if (rnd() < .3){ u = (rnd()*2 - 1)*h; v = (rnd()*2 - 1)*h; }                                                         // vidrio
+        else { const k = Math.floor(rnd()*6), t = (rnd()*2 - 1)*h; [u, v] = k === 0 ? [t, -h] : k === 1 ? [t, h] : k === 2 ? [-h, t] : k === 3 ? [h, t] : k === 4 ? [t, 0] : [0, t]; }   // marco y cruz
+        u += gauss()*.003; v += gauss()*.003;
+        return pl === 'z' ? [cx + u, cy + v, sg*(Lh + .004)] : [sg*(Wd + .004), cy + v, cx + u]; },
+      WS = [[0, .28, .2, 'z', 1], [-.36, -.38, .22, 'z', 1], [.36, -.38, .22, 'z', 1], [0, .28, .2, 'z', -1], [-.36, -.38, .22, 'z', -1], [.36, -.38, .22, 'z', -1],
+            [.25, -.36, .24, 'x', 1], [-.25, -.36, .24, 'x', 1], [.25, -.36, .24, 'x', -1], [-.25, -.36, .24, 'x', -1]],
+      SM = [[.37, .78, -.25, .05], [.43, .95, -.25, .075], [.5, 1.14, -.25, .1]];
+    for (const p of prismPts(Math.round(n*.54), [poly], Lh, 1)) fin(p, 1);
+    while (out.length < n){ const q = rnd(); let p;
+      if (q < .5){ const w = WS[Math.floor(rnd()*WS.length)]; p = win(w[0], w[1], w[2], w[3], w[4]); }
+      else if (q < .72){ const r = rnd(); let d;                                                                                  // puerta
+        if (r < .45){ const k = Math.floor(rnd()*3), t = rnd(); d = k === 0 ? [-.12, -.69 + t*.42] : k === 1 ? [.12, -.69 + t*.42] : [-.12 + t*.24, -.27]; }
+        else if (r < .85){ const R2 = rnd() < .5 ? [-.33, -.45] : [-.5, -.64], k = Math.floor(rnd()*4), t = rnd();
+          d = k === 0 ? [-.075 + t*.15, R2[0]] : k === 1 ? [-.075 + t*.15, R2[1]] : k === 2 ? [-.075, R2[0] + t*(R2[1] - R2[0])] : [.075, R2[0] + t*(R2[1] - R2[0])]; }
+        else d = [.085 + gauss()*.007, -.52 + gauss()*.007];                                                                        // picaporte
+        p = [d[0] + gauss()*.003, d[1] + gauss()*.003, Lh + .004]; }
+      else if (q < .88){ const lo = [.28, .2, -.34], hi = [.46, .62, -.16], a = Math.floor(rnd()*3); p = [0, 0, 0];                // chimenea
+        if (rnd() < .6){ for (let m = 0; m < 3; m++) p[m] = m === a ? lo[m] + rnd()*(hi[m] - lo[m]) : (rnd() < .5 ? lo[m] : hi[m]); }
+        else { for (let m = 0; m < 3; m++) p[m] = lo[m] + rnd()*(hi[m] - lo[m]); p[a] = rnd() < .5 ? lo[a] : hi[a]; } }
+      else { const s = SM[Math.floor(rnd()*3)]; p = [s[0] + gauss()*s[3], s[1] + gauss()*s[3]*.8, s[2] + gauss()*s[3]]; }       // humo
+      fin(p, 0); }
+    return out;
+  },
+  owl(n){          // búho: cuerpo, ojos grandes encendidos, pico, orejas, plumas del pecho y alas
+    const out = [], rx = .62, ry = .78, rz = .58, zb = (x, y) => rz*Math.sqrt(Math.max(.01, 1 - (x/rx)**2 - (y/ry)**2)),
+      tri = (A, B, C) => { let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } return [A[0] + (B[0] - A[0])*u + (C[0] - A[0])*v, A[1] + (B[1] - A[1])*u + (C[1] - A[1])*v]; };
+    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI, sx = rnd() < .5 ? -1 : 1;
+      if (q < .38){ const v = norm3([gauss(), gauss(), gauss()]); out.push([v[0]*rx, v[1]*ry, v[2]*rz, 0, 1]); }
+      else if (q < .47){ const x = sx*.25 + .25*Math.cos(a), y = .25 + .25*Math.sin(a); out.push([x, y, zb(x, y) + .012, 0, 0]); }                     // disco facial
+      else if (q < .6){ const r = .14*Math.sqrt(rnd()), x = sx*.25 + r*Math.cos(a), y = .25 + r*Math.sin(a); out.push([x, y, zb(x, y) + .016, 0, 0]); }    // ojos encendidos
+      else if (q < .66){ const p = tri([-.06, .06], [.06, .06], [0, -.1]); out.push([p[0], p[1], zb(p[0], p[1]) + .05, 0, 0]); }                         // pico
+      else if (q < .74){ const e = sx, t = rnd(), seg = Math.floor(rnd()*3), P = [[e*.5, .55], [e*.42, .9], [e*.2, .7]], A = P[seg], B = P[(seg + 1) % 3];
+        out.push([A[0] + (B[0] - A[0])*t, A[1] + (B[1] - A[1])*t, .3, 0, 1]); }                                                                         // orejas
+      else if (q < .9){ const row = Math.floor(rnd()*4), y0 = -.08 - row*.19, k = Math.floor(rnd()*5), cx = -.36 + k*.18 + (row % 2 ? .09 : 0), t = rnd()*Math.PI,
+          x = cx + .09*Math.cos(t), y = y0 - .09*Math.sin(t);
+        if ((x/rx)**2 + (y/ry)**2 < .8) out.push([x, y, zb(x, y) + .012, 0, 0]); else i--; }                                                         // plumas del pecho
+      else if (q < .97){ const ph = sx*(rnd() < .5 ? 1.05 : 1.25), th = .35 + rnd()*2.0; out.push([Math.sin(th)*Math.sin(ph)*rx*1.01, Math.cos(th)*ry, Math.sin(th)*Math.cos(ph)*rz*1.01, 0, 1]); }   // alas
+      else out.push([sx*.18 + gauss()*.03, -.78 + gauss()*.015, .25 + gauss()*.03, 0, 0]);                                                                   // patitas
+    }
+    return out;
+  },
+  cat(n){          // cara de gatito: cabeza, orejas, ojos con pupila vertical, nariz, boca y bigotes
+    const out = [], rx = .78, ry = .62, rz = .6, zh = (x, y) => rz*Math.sqrt(Math.max(.05, 1 - (x/rx)**2 - (y/ry)**2));
+    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI, sx = rnd() < .5 ? -1 : 1;
+      if (q < .4){ const v = norm3([gauss(), gauss(), gauss()]); out.push([v[0]*rx, v[1]*ry, v[2]*rz, 0, 1]); }
+      else if (q < .52){ const P = [[sx*.72, .3], [sx*.62, .98], [sx*.28, .58]], seg = Math.floor(rnd()*3), A = P[seg], B = P[(seg + 1) % 3], t = rnd(); out.push([A[0] + (B[0] - A[0])*t, A[1] + (B[1] - A[1])*t, .22, 0, 1]); }        // orejas
+      else if (q < .58){ let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } const A = [sx*.62, .4], B = [sx*.55, .82], C = [sx*.35, .56];
+        out.push([A[0] + (B[0] - A[0])*u + (C[0] - A[0])*v, A[1] + (B[1] - A[1])*u + (C[1] - A[1])*v, .24, 0, 0]); }                                         // interior de la oreja
+      else if (q < .7){ const x = sx*.3 + .12*Math.cos(a), y = .08 + .15*Math.sin(a); out.push([x, y, zh(x, y) + .012, 0, 0]); }                                // contorno de los ojos
+      else if (q < .82){ const r = Math.sqrt(rnd()), u = .12*r*Math.cos(a), y = .08 + .15*r*Math.sin(a); if (Math.abs(u) < .028){ i--; continue; } const x = sx*.3 + u; out.push([x, y, zh(x, y) + .016, 0, 0]); }   // ojos encendidos
+      else if (q < .85){ let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } const x = (v - u)*.07, y = -.12 + u*.08 + v*.08; out.push([x, y, zh(x, y) + .02, 0, 0]); }    // nariz
+      else if (q < .9){ const t = rnd(), x = sx*.16*t, y = -.2 - .07*Math.sin(Math.PI*t*.9); out.push([x, y, zh(x, y) + .012, 0, 0]); }                          // boca
+      else { const k = Math.floor(rnd()*3) - 1, t = rnd(), x = sx*(.42 + t*.55), y = -.1 + k*.05 + k*t*.12; out.push([x, y, Math.max(.1, zh(sx*.42, -.1)*(1 - t*.5)), 0, 0]); }      // bigotes
+    }
+    return out;
+  },
+  mushroom(n){     // hongo: sombrero con lunares, laminillas y pie
+    const out = [], SP = Array.from({length: 9}, () => norm3([gauss()*1.1, Math.abs(gauss()) + .35, gauss()*1.1]));
+    for (let i = 0; i < n; i++){ const q = rnd(), a = rnd()*2*Math.PI;
+      if (q < .46){ const v = norm3([gauss(), Math.abs(gauss()), gauss()]); out.push([v[0]*.9, .05 + v[1]*.62, v[2]*.9, 0, 1]); }
+      else if (q < .66){ const c = SP[Math.floor(rnd()*9)]; let v; do v = norm3([c[0] + gauss()*.12, c[1] + gauss()*.12, c[2] + gauss()*.12]); while (Math.hypot(v[0] - c[0], v[1] - c[1], v[2] - c[2]) > .13);   // lunares redondos y llenos
+        out.push([v[0]*.905, .05 + v[1]*.625, v[2]*.905, 0, 0]); }
+      else if (q < .76){ const r = .3 + rnd()*.55, k = Math.floor(rnd()*18)*Math.PI/9; out.push([r*Math.cos(k), .05, r*Math.sin(k), 0, 0]); }          // laminillas
+      else if (q < .96){ const y = -.85 + rnd()*.9, r = .18 + .1*Math.pow((.05 - y)/.9, 1.5); out.push([r*Math.cos(a), y, r*Math.sin(a), 0, 0]); }       // pie
+      else out.push([.27*Math.cos(a), -.35 + gauss()*.01, .27*Math.sin(a), 0, 0]);                                                                       // anillo
     }
     return out;
   },
@@ -1017,7 +1072,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

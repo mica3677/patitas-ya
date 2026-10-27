@@ -877,6 +877,130 @@ def _piramide_video(n, rng):
     return np.array(out)
 
 
+def _casita(n, rng):
+    """Casita con puerta, ventanas, chimenea y humo: la casa de un color (grupo 1) y los detalles de otro (grupo 0)."""
+    R, G = rng.random, rng.normal; Wd, Lh, E, Rg, K, SH = .6, .6, .09, .69, .9, .23; out = []
+    poly = [(-Wd, -.69), (Wd, -.69), (Wd, E), (0, Rg), (-Wd, E)]
+    for p in _prisma(round(n * .54), [poly], Lh, 1., rng): out.append([p[0] * K, (p[1] - SH) * K, p[2] * K, 0, 1])
+    WS = [(0, .28, .2, 'z', 1), (-.36, -.38, .22, 'z', 1), (.36, -.38, .22, 'z', 1), (0, .28, .2, 'z', -1), (-.36, -.38, .22, 'z', -1), (.36, -.38, .22, 'z', -1),
+          (.25, -.36, .24, 'x', 1), (-.25, -.36, .24, 'x', 1), (.25, -.36, .24, 'x', -1), (-.25, -.36, .24, 'x', -1)]
+    SM = [(.37, .78, -.25, .05), (.43, .95, -.25, .075), (.5, 1.14, -.25, .1)]
+    def win(cx, cy, s_, pl, sg):
+        h = s_ / 2
+        if R() < .3: u, v = (R() * 2 - 1) * h, (R() * 2 - 1) * h
+        else:
+            k = int(R() * 6); t = (R() * 2 - 1) * h; u, v = [(t, -h), (t, h), (-h, t), (h, t), (t, 0), (0, t)][k]
+        u += G() * .003; v += G() * .003
+        return [cx + u, cy + v, sg * (Lh + .004)] if pl == 'z' else [sg * (Wd + .004), cy + v, cx + u]
+    while len(out) < n:
+        q = R()
+        if q < .5:
+            w = WS[int(R() * len(WS))]; p = win(*w)
+        elif q < .72:
+            r = R()
+            if r < .45:
+                k = int(R() * 3); t = R(); d = [(-.12, -.69 + t * .42), (.12, -.69 + t * .42), (-.12 + t * .24, -.27)][k]
+            elif r < .85:
+                R2 = (-.33, -.45) if R() < .5 else (-.5, -.64); k = int(R() * 4); t = R()
+                d = [(-.075 + t * .15, R2[0]), (-.075 + t * .15, R2[1]), (-.075, R2[0] + t * (R2[1] - R2[0])), (.075, R2[0] + t * (R2[1] - R2[0]))][k]
+            else: d = (.085 + G() * .007, -.52 + G() * .007)
+            p = [d[0] + G() * .003, d[1] + G() * .003, Lh + .004]
+        elif q < .88:
+            lo = [.28, .2, -.34]; hi = [.46, .62, -.16]; a = int(R() * 3); p = [0., 0., 0.]
+            if R() < .6:
+                for m in range(3): p[m] = lo[m] + R() * (hi[m] - lo[m]) if m == a else (lo[m] if R() < .5 else hi[m])
+            else:
+                for m in range(3): p[m] = lo[m] + R() * (hi[m] - lo[m])
+                p[a] = lo[a] if R() < .5 else hi[a]
+        else:
+            s2 = SM[int(R() * 3)]; p = [s2[0] + G() * s2[3], s2[1] + G() * s2[3] * .8, s2[2] + G() * s2[3]]
+        out.append([p[0] * K, (p[1] - SH) * K, p[2] * K, 0, 0])
+    return np.array(out)
+
+
+def _buho(n, rng):
+    R, G = rng.random, rng.normal; out = []; rx, ry, rz = .62, .78, .58
+    zb = lambda x, y: rz * math.sqrt(max(.01, 1 - (x / rx) ** 2 - (y / ry) ** 2))
+    def tri(A, B, C):
+        u, v = R(), R()
+        if u + v > 1: u, v = 1 - u, 1 - v
+        return [A[0] + (B[0] - A[0]) * u + (C[0] - A[0]) * v, A[1] + (B[1] - A[1]) * u + (C[1] - A[1]) * v]
+    while len(out) < n:
+        q = R(); a = R() * 2 * math.pi; sx = -1 if R() < .5 else 1
+        if q < .38:
+            v = _n3(rng.normal(size=3)); out.append([v[0] * rx, v[1] * ry, v[2] * rz, 0, 1])
+        elif q < .47:
+            x = sx * .25 + .25 * math.cos(a); y = .25 + .25 * math.sin(a); out.append([x, y, zb(x, y) + .012, 0, 0])
+        elif q < .6:
+            r = .14 * math.sqrt(R()); x = sx * .25 + r * math.cos(a); y = .25 + r * math.sin(a); out.append([x, y, zb(x, y) + .016, 0, 0])
+        elif q < .66:
+            p = tri((-.06, .06), (.06, .06), (0, -.1)); out.append([p[0], p[1], zb(p[0], p[1]) + .05, 0, 0])
+        elif q < .74:
+            t = R(); seg = int(R() * 3); P = [(sx * .5, .55), (sx * .42, .9), (sx * .2, .7)]; A, B = P[seg], P[(seg + 1) % 3]
+            out.append([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, .3, 0, 1])
+        elif q < .9:
+            row = int(R() * 4); y0 = -.08 - row * .19; k = int(R() * 5); cx = -.36 + k * .18 + (.09 if row % 2 else 0); t = R() * math.pi
+            x = cx + .09 * math.cos(t); y = y0 - .09 * math.sin(t)
+            if (x / rx) ** 2 + (y / ry) ** 2 < .8: out.append([x, y, zb(x, y) + .012, 0, 0])
+        elif q < .97:
+            ph = sx * (1.05 if R() < .5 else 1.25); th = .35 + R() * 2.0
+            out.append([math.sin(th) * math.sin(ph) * rx * 1.01, math.cos(th) * ry, math.sin(th) * math.cos(ph) * rz * 1.01, 0, 1])
+        else: out.append([sx * .18 + G() * .03, -.78 + G() * .015, .25 + G() * .03, 0, 0])
+    return np.array(out[:n])
+
+
+def _gato(n, rng):
+    R, G = rng.random, rng.normal; out = []; rx, ry, rz = .78, .62, .6
+    zh = lambda x, y: rz * math.sqrt(max(.05, 1 - (x / rx) ** 2 - (y / ry) ** 2))
+    while len(out) < n:
+        q = R(); a = R() * 2 * math.pi; sx = -1 if R() < .5 else 1
+        if q < .4:
+            v = _n3(rng.normal(size=3)); out.append([v[0] * rx, v[1] * ry, v[2] * rz, 0, 1])
+        elif q < .52:
+            P = [(sx * .72, .3), (sx * .62, .98), (sx * .28, .58)]; seg = int(R() * 3); A, B = P[seg], P[(seg + 1) % 3]; t = R()
+            out.append([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, .22, 0, 1])
+        elif q < .58:
+            u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            A, B, C = (sx * .62, .4), (sx * .55, .82), (sx * .35, .56)
+            out.append([A[0] + (B[0] - A[0]) * u + (C[0] - A[0]) * v, A[1] + (B[1] - A[1]) * u + (C[1] - A[1]) * v, .24, 0, 0])
+        elif q < .7:
+            x = sx * .3 + .12 * math.cos(a); y = .08 + .15 * math.sin(a); out.append([x, y, zh(x, y) + .012, 0, 0])
+        elif q < .82:
+            r = math.sqrt(R()); u = .12 * r * math.cos(a); y = .08 + .15 * r * math.sin(a)
+            if abs(u) >= .028: x = sx * .3 + u; out.append([x, y, zh(x, y) + .016, 0, 0])
+        elif q < .85:
+            u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            x = (v - u) * .07; y = -.12 + u * .08 + v * .08; out.append([x, y, zh(x, y) + .02, 0, 0])
+        elif q < .9:
+            t = R(); x = sx * .16 * t; y = -.2 - .07 * math.sin(math.pi * t * .9); out.append([x, y, zh(x, y) + .012, 0, 0])
+        else:
+            k = int(R() * 3) - 1; t = R(); x = sx * (.42 + t * .55); y = -.1 + k * .05 + k * t * .12; out.append([x, y, max(.1, zh(sx * .42, -.1) * (1 - t * .5)), 0, 0])
+    return np.array(out[:n])
+
+
+def _hongo(n, rng):
+    R, G = rng.random, rng.normal; out = []
+    SP = [_n3([G() * 1.1, abs(G()) + .35, G() * 1.1]) for _ in range(9)]
+    for _ in range(n):
+        q = R(); a = R() * 2 * math.pi
+        if q < .46:
+            v = _n3([G(), abs(G()), G()]); out.append([v[0] * .9, .05 + v[1] * .62, v[2] * .9, 0, 1])
+        elif q < .66:
+            c = SP[int(R() * 9)]
+            while True:
+                v = _n3([c[0] + G() * .12, c[1] + G() * .12, c[2] + G() * .12])
+                if np.linalg.norm(v - c) <= .13: break
+            out.append([v[0] * .905, .05 + v[1] * .625, v[2] * .905, 0, 0])
+        elif q < .76:
+            r = .3 + R() * .55; k = int(R() * 18) * math.pi / 9; out.append([r * math.cos(k), .05, r * math.sin(k), 0, 0])
+        elif q < .96:
+            y = -.85 + R() * .9; r = .18 + .1 * ((.05 - y) / .9) ** 1.5; out.append([r * math.cos(a), y, r * math.sin(a), 0, 0])
+        else: out.append([.27 * math.cos(a), -.35 + G() * .01, .27 * math.sin(a), 0, 0])
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -1060,7 +1184,10 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "rodajas": return _rodajas(n, rng)
     if nombre == "prisma_triangular": return _prisma(n, [[(-.5, .45), (-.5, -.45), (.55, 0)]], .45, 1.3, rng)
     if nombre == "prisma_hexagonal": return _prisma(n, [[(.6 * math.cos(k * math.pi / 3), .6 * math.sin(k * math.pi / 3)) for k in range(6)]], .45, 1.25, rng)
-    if nombre == "casita": return _prisma(n, [[(-.5, -.5), (.5, -.5), (.5, .15), (0, .65), (-.5, .15)]], .5, 1.2, rng)
+    if nombre == "casita": return _casita(n, rng)
+    if nombre == "buho": return _buho(n, rng)
+    if nombre == "gato": return _gato(n, rng)
+    if nombre == "hongo": return _hongo(n, rng)
     if nombre == "rampa": return _prisma(n, [[(-.6, -.4), (.6, -.4), (.6, .4)]], .5, 1.2, rng)
     if nombre == "escalera": return _prisma(n, [[(-.6, -.6), (.6, -.6), (.6, .6), (.3, .6), (.3, .3), (0, .3), (0, 0), (-.3, 0), (-.3, -.3), (-.6, -.3)]], .35, 1.15, rng)
     if nombre == "cruz": return _cajas(n, [(0, 0, 0, .75, .14, .14), (0, 0, 0, .14, .75, .14), (0, 0, 0, .14, .14, .75)], rng)
@@ -1108,7 +1235,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
+                                                  "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
