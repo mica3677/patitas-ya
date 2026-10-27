@@ -1496,6 +1496,12 @@ def render_residual(a):
         d = ImageDraw.Draw(im, "RGBA")
         for j, l in enumerate(envolver(d, t, f, W * ancho)): d.text((W / 2, y + j * interl), l, font=f, fill=col + (alpha,), anchor="ms")
     def ease(u): u = min(1, max(0, u)); return u * u * (3 - 2 * u)
+    SUBS = [(.3, 2.5, "Mira el punto blanco del centro."), (2.9, 3.9, "No parpadees."), (4.2, 5.6, "Sigue mirando el punto."), (5.8, 8.35, "Tus ojos se están cansando de estos colores."), (8.35, 9.0, "Ya casi."),
+            (9.3, 10.6, "Ahora mira el blanco."), (11.0, 11.8, "¿Ves la bandera?"), (12.5, 14.4, "Tu cerebro la está inventando."), (14.6, 16.3, "Los colores no estaban ahí.")]
+    def _subtitulo(t):
+        for t0, t1, tx in SUBS:
+            if t0 <= t <= t1: return tx, ease((t - t0) / .25) * ease((t1 - t) / .25)
+        return None
     def cuadro(i):
         t = i / a.fps
         if t < T1:                                                                                              # --- 1) mirar el punto
@@ -1512,8 +1518,10 @@ def render_residual(a):
             d.arc((cx - rr, cy - rr, cx + rr, cy + rr), -90, -90 + 360 * prog, fill=(255, 255, 255, 235), width=5)
             pul = 1 + .18 * math.sin(2 * math.pi * t / 1.2); d.ellipse((cx - 15 * pul, cy - 15 * pul, cx + 15 * pul, cy + 15 * pul), fill=(0, 0, 0, 255)); d.ellipse((cx - 10 * pul, cy - 10 * pul, cx + 10 * pul, cy + 10 * pul), fill=(255, 255, 255, 255))
             texto(im, 330, a.arriba, fT, (255, 255, 255), interl=82)
-            sub = "sin parpadear" if t < 3 else ("seguí mirando el punto" if t < T1 - 2.5 else "ya casi…")
-            d.text((W / 2, 330 + 82 * (len(envolver(d, a.arriba, fT, W * .84)) - 1) + 78), sub, font=fS, fill=(170, 200, 255, 230), anchor="ms")
+            fr = (t % 1.0)                                                                                   # onda que sale del punto en cada segundo (acompana al tic del audio)
+            if t >= 1.0: rp = 46 + 150 * fr; d.ellipse((cx - rp, cy - rp, cx + rp, cy + rp), outline=(255, 255, 255, int(150 * (1 - fr) ** 2)), width=3)
+            sub = _subtitulo(t)
+            if sub: d.text((W / 2, 330 + 82 * (len(envolver(d, a.arriba, fT, W * .84)) - 1) + 78), sub[0], font=fS, fill=(170, 200, 255, int(235 * sub[1])), anchor="ms")
             n = str(int(math.ceil(T1 - t))); d.text((W / 2, 1500), n, font=fN, fill=(255, 255, 255, 255), anchor="ms")
             return im.tobytes()
         if t < T1 + T2:                                                                                         # --- 2) blanco
@@ -1521,8 +1529,9 @@ def render_residual(a):
             rr = 34 + 5 * math.sin(2 * math.pi * u / 1.6); d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(0, 0, 0, 55), width=3)
             d.ellipse((cx - 15, cy - 15, cx + 15, cy + 15), fill=(0, 0, 0, 255)); d.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=(255, 255, 255, 255))
             texto(im, 330, a.abajo, fT, (20, 20, 30), interl=82, alpha=int(255 * ease(u / .5)))
-            if u > 1.6: d.text((W / 2, 330 + 82 * (len(envolver(d, a.abajo, fT, W * .84)) - 1) + 78), "seguí mirando el punto", font=fS, fill=(90, 90, 110, int(255 * ease((u - 1.6) / .6))), anchor="ms")
-            if u > 3.4: d.text((W / 2, 1560), "parpadeá una vez", font=fS, fill=(90, 90, 110, int(255 * ease((u - 3.4) / .6))), anchor="ms")
+            sub = _subtitulo(t)
+            if sub: d.text((W / 2, 330 + 82 * (len(envolver(d, a.abajo, fT, W * .84)) - 1) + 78), sub[0], font=fS, fill=(90, 90, 110, int(255 * sub[1])), anchor="ms")
+            if u > 3.4: d.text((W / 2, 1560), "parpadea una vez", font=fS, fill=(90, 90, 110, int(255 * ease((u - 3.4) / .6))), anchor="ms")
             return im.tobytes()
         u = t - T1 - T2                                                                                         # --- 3) revelacion: lo que mirabas vs lo que aparecio
         img = fondo.copy(); im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d = ImageDraw.Draw(im, "RGBA"); k_ = ease(u / .6)
@@ -1535,11 +1544,16 @@ def render_residual(a):
             lay = Image.new("RGBA", im.size, (0, 0, 0, 0)); lay.paste(pim.convert("RGBA"), pos); lay.putalpha(lay.getchannel("A").point(lambda v: int(v * k_))); im = Image.alpha_composite(im.convert("RGBA"), lay).convert("RGB")
             d = ImageDraw.Draw(im, "RGBA"); d.text((W / 2, yc + pim.height / 2 + 62), etq, font=fL, fill=(170, 200, 255, int(255 * k_)), anchor="ms")
         d.polygon([(W / 2 - 34, 1040), (W / 2 + 34, 1040), (W / 2, 1090)], fill=(255, 255, 255, int(255 * k_)))
+        sub = _subtitulo(t)
+        if sub: d.text((W / 2, 1640), sub[0], font=fS, fill=(170, 200, 255, int(235 * sub[1])), anchor="ms")
         return im.tobytes()
     if a.preview: Image.frombytes("RGB", (W, H), cuadro(int(a.preview_t * total))).save("preview.png"); print("preview.png"); return
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
            "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-maxrate", "12M", "-bufsize", "24M", "-profile:v", "high",
            "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"]
+    if a.audio:       # audio: se normaliza el volumen (-14 LUFS, como piden las redes) y se mezcla en AAC
+        cmd[cmd.index("-vf"):cmd.index("-vf")] = ["-i", a.audio]
+        cmd[-1:-1] = ["-af", "loudnorm=I=-14:TP=-1.5:LRA=7", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-shortest"]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for i in range(total):
         p.stdin.write(cuadro(i))
@@ -1619,6 +1633,7 @@ def main():
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
     ap.add_argument("--pausa", type=float, default=None, help="campo_*: segundos de pausa a los 62%% del video donde todo se congela y la figura desaparece (nada = sin pausa)")
     ap.add_argument("--revela", type=float, default=None, help="campo_*: segundos que tarda el ruido en ordenarse (0 o nada = la figura esta desde el principio)")
+    ap.add_argument("--audio", default=None, help="imagen residual: archivo de audio (wav/mp3) que se mezcla al video")
     ap.add_argument("--salida", default=None)
     ap.add_argument("--preview", action="store_true", help="solo guarda un PNG de control")
     ap.add_argument("--preview-t", type=float, default=1 / 7, help="momento del preview, 0 a 1")
