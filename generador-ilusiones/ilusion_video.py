@@ -1128,6 +1128,7 @@ def main():
     ap.add_argument("--estrellas", type=int, default=0, help="cantidad de estrellitas de fondo")
     ap.add_argument("--palabra", default="USA", help="texto para la forma texto3d")
     ap.add_argument("--diseno", default="clasico", choices=["clasico", "triangulo"], help="triangulo = texto y posicion como el video del triangulo")
+    ap.add_argument("--exacta", action="store_true", help="respeta las vueltas por minuto aunque el bucle no cierre")
     ap.add_argument("--semilla", type=int, default=7)
     ap.add_argument("--reves", action="store_true")
     ap.add_argument("--crf", type=int, default=10, help="calidad x264: menor = mejor (0 = sin perdida)")
@@ -1167,7 +1168,7 @@ def main():
     dep = a.profundidad / 100
     total = int(round(a.seg * a.fps))
     # para que el video sea un bucle perfecto, el giro total se ajusta a vueltas enteras
-    vueltas = max(1, round(a.vueltas_min / 60 * a.seg))
+    vueltas = a.vueltas_min / 60 * a.seg if a.exacta else max(1, round(a.vueltas_min / 60 * a.seg))   # exacta = respeta la velocidad, el bucle puede no cerrar
     sgn = -1 if a.reves else 1
 
     # recuadro de la figura, para no procesar toda la pantalla en cada cuadro

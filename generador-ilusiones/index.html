@@ -150,6 +150,7 @@
   <label>Duración del video (s) <span id="vR"></span></label>
   <input type="range" id="r" min="5" max="30" step="1" value="15">
   <div class="chk"><input type="checkbox" id="rev"><label for="rev" style="margin:0;color:inherit;text-transform:none;font-size:14px">Girar al revés</label></div>
+  <div class="chk"><input type="checkbox" id="ex"><label for="ex" style="margin:0;color:inherit;text-transform:none;font-size:14px">Velocidad exacta (el video no cierra el bucle)</label></div>
   <div class="row">
     <button id="rnd" class="sec">Sorpréndeme</button>
     <button id="reseed" class="sec">Nueva versión</button>
@@ -1001,7 +1002,7 @@ function labels(){
 const setV = (id, v) => { $(id).value = v; };
 $('shape').addEventListener('input', () => {                 // la pirámide del video viene con los valores que la copian tal cual
   if ($('shape').value !== 'pyrVideo') return;
-  setV('n', 6000); setV('s', 2); setV('v', 10); setV('t', 0); setV('d', 0); setV('z', 42); setV('b', 0); setV('e', 0); setV('r', 12); $('dis').value = 'triangulo'; $('rev').checked = false;
+  setV('n', 6000); setV('s', 2); setV('v', 10); setV('t', 0); setV('d', 0); setV('z', 42); setV('b', 0); setV('e', 0); setV('r', 12); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
   applyPalette(PALETAS['Clásico']); $('top').value = '¿Puedes invertir el giro solo con tu mente?'; $('bot').value = 'SIGUEME SI LO LOGRASTE.'; labels();
   $('msg').textContent = 'Ajustes cargados para copiar el video del triángulo: 10 vueltas por minuto, sin inclinación. Usá una duración de 6 o 12 s para que cierre la vuelta.';
 });
@@ -1024,7 +1025,7 @@ $('rec').onclick = async () => {
     'PEDIDO DE VIDEO',
     'Forma: ' + nombre + ' (' + PYFORMA[sel.value] + ')',
     'Puntos: ' + $('n').value + ' | Tamaño: ' + $('s').value,
-    'Velocidad: ' + $('v').value + ' vueltas/min | Sentido: ' + ($('rev').checked ? 'al revés' : 'normal'),
+    'Velocidad: ' + $('v').value + ' vueltas/min | Sentido: ' + ($('rev').checked ? 'al revés' : 'normal') + ' | Velocidad exacta: ' + ($('ex').checked ? 'sí (exacta)' : 'no (cierra el bucle)'),
     'Inclinación: ' + $('t').value + '° | Profundidad: ' + $('d').value + '% | Figura: ' + $('z').value + '%',
     'Paleta: ' + (pal ? pal[0] : 'a medida') + ' | Fondo ' + $('cbg').value + ' | Texto ' + $('ctt').value,
     'Puntos arriba ' + $('ca').value + ' | abajo ' + $('cb').value + ' | Degradado: ' + ($('grad').checked ? 'sí' : 'no'),
