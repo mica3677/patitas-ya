@@ -757,25 +757,26 @@ def _cilindro_partido(n, rng):
 
 
 def _flechas_ciclo(n, rng):
-    R_, Hh, W2, L = .8, .34, .2, .36; TE = math.pi / 2 - .24; m = round(n / 2); r = rng.random
-    pt = lambda t, y: np.array([R_ * math.sin(t), y, R_ * math.cos(t)]); tg = np.array([math.cos(TE), 0, -math.sin(TE)])
-    yc = W2 / 2; tip = pt(TE, yc) + tg * L; A = pt(TE, -Hh); B = pt(TE, Hh + W2); g = []
+    """Dos cintas de media vuelta (dorada delante, violeta detras) con punta de flecha, medidas sobre el video de referencia.
+    Sin tapas: solo bordes brillantes y puntos tenues en las cintas, por eso se ve a traves hacia el fondo y el techo."""
+    Hh, Hb, L, SPAN = .49, .95, .62, math.radians(170); TE = math.radians(66); m = round(n / 2); r = rng.random; g = []
+    tg = np.array([math.cos(TE), 0, -math.sin(TE)]); P = lambda t, y: np.array([math.sin(t), y, math.cos(t)])
+    A, B, tip = P(TE, -Hb), P(TE, Hb), P(TE, 0) + tg * L
     for _ in range(m):
-        q = r()
-        if q < .38: p = pt(-math.pi / 2 + r() * (TE + math.pi / 2), (r() * 2 - 1) * Hh)
-        elif q < .5: p = pt(-math.pi / 2 + r() * (TE + math.pi / 2), Hh)
-        elif q < .6: p = pt(r() * 2 * math.pi, -Hh)
-        elif q < .64: p = pt(-math.pi / 2, (r() * 2 - 1) * Hh)
-        elif q < .82:
-            a = r() * 2 * math.pi; rr = R_ * math.sqrt(r()); p = np.array([rr * math.sin(a), -Hh, rr * math.cos(a)])
+        q = r(); br = 1.0
+        if q < .36: p = P(TE - SPAN * r(), (r() * 2 - 1) * Hh); br = .8                        # cinta: puntos sueltos y tenues
+        elif q < .52: p = P(TE - SPAN * r(), Hh)                                                  # borde de arriba
+        elif q < .68: p = P(TE - SPAN * r(), -Hh)                                                 # borde de abajo
+        elif q < .70: p = P(TE - SPAN, (r() * 2 - 1) * Hh)                                        # arranque de la cinta
+        elif q < .80: u = r(); p = A + (B - A) * u                                                # base de la punta
+        elif q < .90: u = r(); s_ = (A, B)[r() < .5]; p = s_ + (tip - s_) * u                    # lados de la punta
         else:
             u, v = r(), r()
             if u + v > 1: u, v = 1 - u, 1 - v
-            if q < .88: u = r(); s = (B, tip) if r() < .5 else (A, tip); p = s[0] + (s[1] - s[0]) * u
-            else: p = A + (B - A) * u + (tip - A) * v
-        g.append(p + rng.normal(size=3) * .003)
-    g = np.array(g); o = np.zeros((len(g), 5)); o[:, :3] = g; o[:, 4] = 1
-    p2 = np.zeros((len(g), 5)); p2[:, :3] = -g
+            p = A + (B - A) * u + (tip - A) * v; br = .8                                          # relleno tenue de la punta
+        g.append(np.append(p + rng.normal(size=3) * (.006 if br > .9 else .004), br))
+    g = np.array(g); o = np.zeros((len(g), 7)); o[:, :3] = g[:, :3]; o[:, 4] = 1; o[:, 5] = 1; o[:, 6] = g[:, 3]
+    p2 = np.zeros((len(g), 7)); p2[:, :3] = -g[:, :3]; p2[:, 5] = 1; p2[:, 6] = g[:, 3]
     return np.vstack([o, p2])
 
 
@@ -1376,6 +1377,7 @@ def main():
     fijo = pts[:, 3] > .5 if pts.shape[1] >= 4 else np.zeros(len(pts), dtype=bool)   # puntos fijos en pantalla (no giran)
     grupo = pts[:, 4] if pts.shape[1] >= 5 else None
     giro = pts[:, 5] if pts.shape[1] >= 6 else np.ones(len(pts))                       # cada grupo puede girar a su propio ritmo (1, -1, 2...)                                   # objetos de dos colores: grupo 1 = color de arriba, 0 = color de abajo
+    brillo_pt = pts[:, 6] if pts.shape[1] >= 7 else None                               # brillo propio de cada punto (cintas tenues, bordes vivos)
     pts = pts[:, :3]
     texto = capa_texto(a.arriba, a.abajo, a.diseno)
     pal = PALETAS[a.paleta]; pbg, ptx, pa, pb = pal[:4]
@@ -1422,6 +1424,7 @@ def main():
         px = (W / 2 + x1 * R - box[0]) * SS; py = (cy - y2 * R - box[1]) * SS
         r = a.tam * (1 + dep * .6 * z2) * .6 * SS
         al = np.clip(1 - dep * .7 * (1 - z2) / 2, .08, 1)
+        if brillo_pt is not None: al = al * brillo_pt
         pre = (cols * al[:, None]).astype(np.uint8)
         for k in range(len(px)):
             e = (px[k] - r[k], py[k] - r[k], px[k] + r[k], py[k] + r[k])

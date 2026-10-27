@@ -96,7 +96,7 @@
     <option value="cubesCounter">Cubos que giran al revés</option>
     <option value="slices">Rodajas que giran al revés</option>
         <option value="pyrVideo">Pirámide (la de tu video)</option>
-        <option value="cycleArrows">Cilindro con flechas (la de tu video)</option>
+        <option value="cycleArrows">Cilindro con flechas (el de tu video)</option>
     <option value="prismTri">Prisma triangular</option>
     <option value="prismHex">Prisma hexagonal</option>
     <option value="house">Casita 3D</option>
@@ -125,7 +125,7 @@
     <option value="helix">Hélice doble (ADN)</option>
   </select>
   <label>Cantidad de puntos <span id="vN"></span></label>
-  <input type="range" id="n" min="300" max="9000" step="100" value="2500">
+  <input type="range" id="n" min="300" max="20000" step="100" value="2500">
   <label>Tamaño del punto <span id="vS"></span></label>
   <input type="range" id="s" min="1" max="8" step="0.5" value="3">
   <label>Velocidad (vueltas/min) <span id="vV"></span></label>
@@ -1001,21 +1001,19 @@ const shapes = {
       out.push([p[0] + gauss()*.003, p[1] + gauss()*.003, z, 0, k]); }
     return out;
   },
-  cycleArrows(n){  // dos flechas circulares (dorada y violeta) que envuelven un cilindro, como el video de referencia
-    const R = .8, Hh = .34, W2 = .2, L = .36, TE = Math.PI/2 - .24, out = [], pt = (t, y) => [R*Math.sin(t), y, R*Math.cos(t)], tg = t => [Math.cos(t), 0, -Math.sin(t)],
-      yc = (-Hh + Hh + W2)/2, tip = [0, 1, 2].map(k => pt(TE, yc)[k] + tg(TE)[k]*L), A = pt(TE, -Hh), B = pt(TE, Hh + W2), J = () => gauss()*.003, m = Math.round(n/2), gold = [];
-    for (let i = 0; i < m; i++){ const q = rnd(); let p;
-      if (q < .38) p = pt(-Math.PI/2 + rnd()*(TE + Math.PI/2), (rnd()*2 - 1)*Hh);                              // la cinta
-      else if (q < .5) p = pt(-Math.PI/2 + rnd()*(TE + Math.PI/2), Hh);                                          // borde de arriba
-      else if (q < .6) p = pt(rnd()*2*Math.PI, -Hh);                                                            // aro de abajo, completo
-      else if (q < .64) p = pt(-Math.PI/2, (rnd()*2 - 1)*Hh);                                                   // borde del arranque
-      else if (q < .82){ const a = rnd()*2*Math.PI, r = R*Math.sqrt(rnd()); p = [r*Math.sin(a), -Hh, r*Math.cos(a)]; }  // tapa de abajo
-      else { let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } if (q < .88){ v = 0; u = rnd(); const s = rnd() < .5 ? [B, tip] : [A, tip]; p = [0, 1, 2].map(k => s[0][k] + (s[1][k] - s[0][k])*u); }
-        else p = [0, 1, 2].map(k => A[k] + (B[k] - A[k])*u + (tip[k] - A[k])*v); }                               // la punta: triángulo
-      gold.push(p.map(c => c + J())); }
-    for (const p of gold) out.push([p[0], p[1], p[2], 0, 1]);
-    for (const p of gold) out.push([-p[0], -p[1], -p[2], 0, 0]);
-    return out;
+  cycleArrows(n){  // dos cintas de media vuelta con punta de flecha (dorada delante, violeta detrás), sin tapas: bordes vivos y puntos tenues
+    const Hh = .49, Hb = .95, L = .62, SPAN = 170*Math.PI/180, TE = 66*Math.PI/180, tg = [Math.cos(TE), 0, -Math.sin(TE)], P = (t, y) => [Math.sin(t), y, Math.cos(t)],
+      A = P(TE, -Hb), B = P(TE, Hb), c0 = P(TE, 0), tip = [c0[0] + tg[0]*L, 0, c0[2] + tg[2]*L], m = Math.round(n/2), g = [], mix = (s, e, u) => [0, 1, 2].map(k => s[k] + (e[k] - s[k])*u);
+    for (let i = 0; i < m; i++){ const q = rnd(); let p, br = 1;
+      if (q < .36){ p = P(TE - SPAN*rnd(), (rnd()*2 - 1)*Hh); br = .8; }
+      else if (q < .52) p = P(TE - SPAN*rnd(), Hh);
+      else if (q < .68) p = P(TE - SPAN*rnd(), -Hh);
+      else if (q < .70) p = P(TE - SPAN, (rnd()*2 - 1)*Hh);
+      else if (q < .80) p = mix(A, B, rnd());
+      else if (q < .90) p = mix(rnd() < .5 ? A : B, tip, rnd());
+      else { let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } p = [0, 1, 2].map(k => A[k] + (B[k] - A[k])*u + (tip[k] - A[k])*v); br = .8; }
+      const s = br > .9 ? .006 : .004; g.push([p[0] + gauss()*s, p[1] + gauss()*s, p[2] + gauss()*s, br]); }
+    return g.map(p => [p[0], p[1], p[2], 0, 1, 1, p[3]]).concat(g.map(p => [-p[0], -p[1], -p[2], 0, 0, 1, p[3]]));
   },
   helix(n){
     const out = [];
@@ -1111,7 +1109,7 @@ function draw(){
     const y2 = fx ? y : y*ct - z1*st, z2 = fx ? 0 : y*st + z1*ct;             // inclinación de cámara
     // proyección ortogonal: sin perspectiva, el punto de atrás se ve igual que el de adelante
     const k = 1 + dep*0.6*z2, a = 1 - dep*0.7*(1 - z2)/2;
-    ctx.globalAlpha = Math.max(.08, Math.min(1, a));
+    ctx.globalAlpha = Math.max(.08, Math.min(1, a))*(pts[i][6] === undefined ? 1 : pts[i][6]);
     const r = size*k*(W/1080)*1.2;
     ctx.fillRect(W/2 + x1*R - r/2, cy - y2*R - r/2, r, r);
     GX[i] = W/2 + x1*R; GY[i] = cy - y2*R; GR[i] = r; GA[i] = ctx.globalAlpha;
@@ -1157,6 +1155,12 @@ $('shape').addEventListener('input', () => {                 // la pirámide del
   setV('n', 6000); setV('s', 2); setV('v', 10); setV('t', 0); setV('d', 0); setV('z', 42); setV('b', 0); setV('e', 0); setV('r', 12); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
   applyPalette(PALETAS['Clásico']); $('top').value = '¿Puedes invertir el giro solo con tu mente?'; $('bot').value = 'SIGUEME SI LO LOGRASTE.'; labels();
   $('msg').textContent = 'Ajustes cargados para copiar el video del triángulo: 10 vueltas por minuto, sin inclinación. Usá una duración de 6 o 12 s para que cierre la vuelta.';
+});
+$('shape').addEventListener('input', () => {                 // las flechas en cilindro del video: valores medidos cuadro por cuadro
+  if ($('shape').value !== 'cycleArrows') return;
+  setV('n', Math.min(+$('n').max || 20000, 20000)); setV('s', 2); setV('v', 8); setV('t', 27); setV('d', 0); setV('z', 42.6); setV('b', 0); setV('e', 0); setV('r', 15); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
+  applyPalette(PALETAS['Oro y violeta']); $('ca').value = '#f0b323'; $('cb').value = '#6c5ce7'; $('cbg').value = '#000000'; $('top').value = ''; $('bot').value = ''; labels();
+  $('msg').textContent = 'Ajustes cargados para copiar el video del cilindro con flechas: 8 vueltas por minuto, 15 s (cierra la vuelta). Sin texto.';
 });
 ['n','shape','word'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
 if (document.fonts && document.fonts.load) { document.fonts.load('400 20px "Space Mono"').catch(() => {}); document.fonts.load('italic 400 20px "Space Mono"').catch(() => {}); }
