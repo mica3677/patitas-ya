@@ -86,7 +86,16 @@
     <option value="nebula">Nebulosa</option>
     <option value="plasma">Esfera de plasma</option>
     <option value="burst">Explosión de estrellas</option>
-        <option value="halves">Esfera partida en dos</option>
+            <option value="cubeSplit">Cubo partido en dos</option>
+    <option value="sphereDiag">Esfera partida en diagonal</option>
+    <option value="torusSplit">Toro partido en dos</option>
+    <option value="coneSplit">Cono partido en dos</option>
+    <option value="cylSplit">Cilindro partido en dos</option>
+    <option value="halvesCounter">Mitades que giran al revés</option>
+    <option value="shellsCounter">Esferas que giran al revés</option>
+    <option value="cubesCounter">Cubos que giran al revés</option>
+    <option value="slices">Rodajas que giran al revés</option>
+    <option value="halves">Esfera partida en dos</option>
     <option value="bowls">Cuencos cruzados</option>
     <option value="cutplanet">Planeta cortado (capas)</option>
     <option value="slicedTorus">Toro cortado</option>
@@ -721,6 +730,87 @@ const shapes = {
     }
     return out;
   },
+  cubeSplit(n){      // cubo partido en dos mitades separadas
+    const out = [], H = .7, G = .1, ext = [[0, H], [-H, H], [-H, H]];
+    for (let i = 0; i < n; i++){ const s = rnd() < .5 ? -1 : 1, p = [0, 0, 0], k = Math.floor(rnd()*3);
+      if (rnd() < .45){ for (let m = 0; m < 3; m++) p[m] = m === k ? ext[m][0] + rnd()*(ext[m][1] - ext[m][0]) : ext[m][rnd() < .5 ? 0 : 1]; }      // aristas
+      else { for (let m = 0; m < 3; m++) p[m] = ext[m][0] + rnd()*(ext[m][1] - ext[m][0]); p[k] = ext[k][rnd() < .5 ? 0 : 1]; }                          // caras
+      out.push([s*(p[0] + G), p[1], p[2], 0, s < 0 ? 1 : 0]);
+    }
+    return out;
+  },
+  sphereDiag(n){     // esfera partida en diagonal
+    const out = [], R = .85, G = .12, a = .6, nx = [Math.cos(a), Math.sin(a)], e1 = [-Math.sin(a), Math.cos(a)];
+    for (let i = 0; i < n; i++){ const q = rnd(), s = rnd() < .5 ? -1 : 1, t = rnd()*2*Math.PI;
+      if (q < .6){ const v = norm3([gauss(), gauss(), gauss()]), sg = v[0]*nx[0] + v[1]*nx[1] < 0 ? -1 : 1; out.push([v[0]*R + sg*G*nx[0], v[1]*R + sg*G*nx[1], v[2]*R, 0, sg < 0 ? 1 : 0]); }
+      else { const r = q < .85 ? Math.sqrt(rnd())*R : R; out.push([s*G*nx[0] + r*Math.cos(t)*e1[0], s*G*nx[1] + r*Math.cos(t)*e1[1], r*Math.sin(t), 0, s < 0 ? 1 : 0]); }
+    }
+    return out;
+  },
+  torusSplit(n){     // dona partida en dos medias lunas
+    const out = [], R0 = .65, r0 = .3, G = .1, P = (u, rr, v) => [(R0 + rr*Math.cos(v))*Math.cos(u), rr*Math.sin(v), (R0 + rr*Math.cos(v))*Math.sin(u)];
+    for (let i = 0; i < n; i++){ const s = rnd() < .5 ? 1 : -1, v = rnd()*2*Math.PI;
+      const p = rnd() < .66 ? P((s > 0 ? 0 : Math.PI) + (rnd() - .5)*Math.PI, r0, v) : P(rnd() < .5 ? Math.PI/2 : -Math.PI/2, Math.sqrt(rnd())*r0, v);
+      out.push([p[0] + s*G, p[1], p[2], 0, s > 0 ? 0 : 1]);
+    }
+    return out;
+  },
+  coneSplit(n){      // cono invertido partido en dos
+    const out = [], G = .1;
+    for (let i = 0; i < n; i++){ const q = rnd(), s = rnd() < .5 ? -1 : 1, t = Math.sqrt(rnd()), g = s < 0 ? 1 : 0;
+      if (q < .58){ const a = (rnd() - .5)*Math.PI, r = .85*t; out.push([s*(r*Math.cos(a) + G), -.9 + t*1.7, r*Math.sin(a), 0, g]); }
+      else if (q < .9) out.push([s*G, -.9 + t*1.7, (rnd()*2 - 1)*.85*t, 0, g]);
+      else { const a = (rnd() - .5)*Math.PI; out.push([s*(.85*Math.cos(a) + G), .8, .85*Math.sin(a), 0, g]); }
+    }
+    return out;
+  },
+  cylSplit(n){       // cilindro partido en dos
+    const out = [], R = .55, Hh = .95, G = .1;
+    for (let i = 0; i < n; i++){ const q = rnd(), s = rnd() < .5 ? -1 : 1, a = (rnd() - .5)*Math.PI, g = s < 0 ? 1 : 0;
+      if (q < .55) out.push([s*(R*Math.cos(a) + G), (rnd()*2 - 1)*Hh, R*Math.sin(a), 0, g]);
+      else if (q < .85) out.push([s*G, (rnd()*2 - 1)*Hh, (rnd()*2 - 1)*R, 0, g]);
+      else out.push([s*(R*Math.cos(a) + G), rnd() < .5 ? -Hh : Hh, R*Math.sin(a), 0, g]);
+    }
+    return out;
+  },
+  halvesCounter(n){  // las dos mitades giran en sentidos opuestos y se atraviesan
+    const out = [], R = .85, G = .12;
+    for (let i = 0; i < n; i++){ const q = rnd(); let v;
+      if (q < .3){ const m = Math.floor(rnd()*8)*Math.PI/4, t = rnd()*Math.PI; v = [Math.sin(t)*Math.cos(m), Math.cos(t), Math.sin(t)*Math.sin(m)]; }
+      else v = norm3([gauss(), gauss(), gauss()]);
+      if (q < .75){ const l = v[0] < 0; out.push([v[0]*R + (l ? -G : G), v[1]*R, v[2]*R, 0, l ? 1 : 0, l ? 1 : -1]); }
+      else { const s = rnd() < .5 ? -1 : 1, a = rnd()*2*Math.PI, r = Math.sqrt(rnd())*R; out.push([s*G, r*Math.cos(a), r*Math.sin(a), 0, s < 0 ? 1 : 0, s < 0 ? 1 : -1]); }
+    }
+    return out;
+  },
+  shellsCounter(n){  // tres cáscaras que giran, una al revés de la otra
+    const out = [], SH = [[.92, 1, 1], [.66, 0, -1], [.4, 1, 2]];
+    for (let i = 0; i < n; i++){ const u = rnd(), s = SH[u < .5 ? 0 : u < .82 ? 1 : 2]; let v;
+      if (rnd() < .5){ const m = Math.floor(rnd()*12)*Math.PI/6, t = rnd()*Math.PI; v = [Math.sin(t)*Math.cos(m), Math.cos(t), Math.sin(t)*Math.sin(m)]; }
+      else v = norm3([gauss(), gauss(), gauss()]);
+      out.push([v[0]*s[0], v[1]*s[0], v[2]*s[0], 0, s[1], s[2]]);
+    }
+    return out;
+  },
+  cubesCounter(n){   // un cubo chico adentro de otro, girando al revés
+    const out = [], ed = [], CB = [[.8, 1, 1], [.46, 0, -1]];
+    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]){ const p = [x, y, z]; for (let k = 0; k < 3; k++) if (p[k] < 0){ const q = [...p]; q[k] = 1; ed.push([p, q]); } }
+    for (let i = 0; i < n; i++){ const [H, g, sp] = CB[rnd() < .6 ? 0 : 1];
+      if (rnd() < .72){ const [a, b] = ed[Math.floor(rnd()*12)], u = rnd(); out.push([0, 1, 2].map(k => (a[k] + (b[k] - a[k])*u)*H).concat([0, g, sp])); }
+      else { const k = Math.floor(rnd()*3), p = [0, 0, 0]; p[k] = rnd() < .5 ? -H : H; p[(k+1) % 3] = (rnd()*2 - 1)*H; p[(k+2) % 3] = (rnd()*2 - 1)*H; out.push([...p, 0, g, sp]); }
+    }
+    return out;
+  },
+  slices(n){         // esfera en rodajas: cada disco gira al revés del de al lado
+    const out = [], R = .88;
+    for (let i = 0; i < n; i++){ const k = Math.floor(rnd()*7), y = -.78 + k*.26, r = Math.sqrt(Math.max(.02, R*R - y*y)), a = rnd()*2*Math.PI, q = rnd(); let p;
+      if (q < .35){ const m = Math.floor(rnd()*12)*Math.PI/6, rr = Math.sqrt(rnd())*r; p = [rr*Math.cos(m), y, rr*Math.sin(m)]; }
+      else if (q < .55) p = [r*Math.cos(a), y, r*Math.sin(a)];
+      else { const rr = Math.sqrt(rnd())*r; p = [rr*Math.cos(a), y, rr*Math.sin(a)]; }
+      out.push([...p, 0, k % 2, k % 2 ? -1 : 1]);
+    }
+    return out;
+  },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -731,7 +821,7 @@ const shapes = {
   },
 };
 
-let FIX = new Uint8Array(0), GX = new Float32Array(0), GY = GX, GR = GX, GA = GX, stars = [], starKey = '', spriteKey = '', sprites = [];
+let SPIN = new Float32Array(0), FIX = new Uint8Array(0), GX = new Float32Array(0), GY = GX, GR = GX, GA = GX, stars = [], starKey = '', spriteKey = '', sprites = [];
 function ensureStars(){
   const n = +$('e').value, key = n + ':' + seedBase; if (key === starKey) return; starKey = key;
   let s = seedBase*7919 + 13; const r = () => (s = (s*16807) % 2147483647) / 2147483647;
@@ -753,7 +843,7 @@ function build(){
   if (flat || grp){ lo = Infinity; hi = -Infinity; for (const p of raw){ lo = Math.min(lo,key(p)); hi = Math.max(hi,key(p)); } }
   const bk = p => Math.min(NB-1, Math.floor((key(p)-lo)/((hi-lo)||1)*NB));
   raw.sort((p,q) => bk(p)-bk(q)); pts = raw; bks = raw.map(bk);
-  FIX = Uint8Array.from(pts, p => p[3] === 1 ? 1 : 0); GX = new Float32Array(pts.length); GY = new Float32Array(pts.length); GR = new Float32Array(pts.length); GA = new Float32Array(pts.length);   // agrupados por color para pintar rápido
+  FIX = Uint8Array.from(pts, p => p[3] === 1 ? 1 : 0); SPIN = Float32Array.from(pts, p => p[5] === undefined ? 1 : p[5]); GX = new Float32Array(pts.length); GY = new Float32Array(pts.length); GR = new Float32Array(pts.length); GA = new Float32Array(pts.length);   // agrupados por color para pintar rápido
 }
 let seedBase = 7;
 const PALETAS = {
@@ -805,7 +895,7 @@ function draw(){
   for (let i = 0; i < pts.length; i++){
     const [x,y,z] = pts[i];
     if (bks[i] !== last){ last = bks[i]; ctx.fillStyle = cols[last]; }
-    const fx = FIX[i], x1 = fx ? x : x*ca + z*sa, z1 = -x*sa + z*ca;          // giro sobre el eje vertical (los puntos fijos no giran)
+    const fx = FIX[i], sp = SPIN[i], cc = sp === 1 ? ca : Math.cos(angle*sp), ss = sp === 1 ? sa : Math.sin(angle*sp), x1 = fx ? x : x*cc + z*ss, z1 = -x*ss + z*cc;          // giro sobre el eje vertical (los puntos fijos no giran)
     const y2 = fx ? y : y*ct - z1*st, z2 = fx ? 0 : y*st + z1*ct;             // inclinación de cámara
     // proyección ortogonal: sin perspectiva, el punto de atrás se ve igual que el de adelante
     const k = 1 + dep*0.6*z2, a = 1 - dep*0.7*(1 - z2)/2;
@@ -852,7 +942,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

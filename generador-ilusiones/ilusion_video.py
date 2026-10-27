@@ -696,6 +696,120 @@ def _cubo_puntos(n, rng):
     return np.array(out)
 
 
+def _cubo_partido(n, rng):
+    R = rng.random; out = []; H, G = .7, .1; ext = [(0., H), (-H, H), (-H, H)]
+    for _ in range(n):
+        sg = -1 if R() < .5 else 1; k = int(R() * 3); p = [0., 0., 0.]
+        if R() < .45:
+            for m in range(3): p[m] = ext[m][0] + R() * (ext[m][1] - ext[m][0]) if m == k else ext[m][0 if R() < .5 else 1]
+        else:
+            for m in range(3): p[m] = ext[m][0] + R() * (ext[m][1] - ext[m][0])
+            p[k] = ext[k][0 if R() < .5 else 1]
+        out.append([sg * (p[0] + G), p[1], p[2], 0, 1 if sg < 0 else 0])
+    return np.array(out)
+
+
+def _esfera_diagonal(n, rng):
+    R = rng.random; out = []; Rr, G, a = .85, .12, .6; nx = (math.cos(a), math.sin(a)); e1 = (-math.sin(a), math.cos(a))
+    for _ in range(n):
+        q = R(); sg = -1 if R() < .5 else 1; t = R() * 2 * math.pi
+        if q < .6:
+            v = _n3(rng.normal(size=3)); s2 = -1 if v[0] * nx[0] + v[1] * nx[1] < 0 else 1
+            out.append([v[0] * Rr + s2 * G * nx[0], v[1] * Rr + s2 * G * nx[1], v[2] * Rr, 0, 1 if s2 < 0 else 0])
+        else:
+            r = math.sqrt(R()) * Rr if q < .85 else Rr
+            out.append([sg * G * nx[0] + r * math.cos(t) * e1[0], sg * G * nx[1] + r * math.cos(t) * e1[1], r * math.sin(t), 0, 1 if sg < 0 else 0])
+    return np.array(out)
+
+
+def _toro_partido(n, rng):
+    R = rng.random; out = []; R0, r0, G = .65, .3, .1
+    def P(u, rr, v): return [(R0 + rr * math.cos(v)) * math.cos(u), rr * math.sin(v), (R0 + rr * math.cos(v)) * math.sin(u)]
+    for _ in range(n):
+        sg = 1 if R() < .5 else -1; v = R() * 2 * math.pi
+        p = P((0 if sg > 0 else math.pi) + (R() - .5) * math.pi, r0, v) if R() < .66 else P(math.pi / 2 if R() < .5 else -math.pi / 2, math.sqrt(R()) * r0, v)
+        out.append([p[0] + sg * G, p[1], p[2], 0, 0 if sg > 0 else 1])
+    return np.array(out)
+
+
+def _cono_partido(n, rng):
+    R = rng.random; out = []; G = .1
+    for _ in range(n):
+        q = R(); sg = -1 if R() < .5 else 1; t = math.sqrt(R()); g = 1 if sg < 0 else 0
+        if q < .58:
+            a = (R() - .5) * math.pi; r = .85 * t; out.append([sg * (r * math.cos(a) + G), -.9 + t * 1.7, r * math.sin(a), 0, g])
+        elif q < .9: out.append([sg * G, -.9 + t * 1.7, (R() * 2 - 1) * .85 * t, 0, g])
+        else:
+            a = (R() - .5) * math.pi; out.append([sg * (.85 * math.cos(a) + G), .8, .85 * math.sin(a), 0, g])
+    return np.array(out)
+
+
+def _cilindro_partido(n, rng):
+    R = rng.random; out = []; Rc, Hh, G = .55, .95, .1
+    for _ in range(n):
+        q = R(); sg = -1 if R() < .5 else 1; a = (R() - .5) * math.pi; g = 1 if sg < 0 else 0
+        if q < .55: out.append([sg * (Rc * math.cos(a) + G), (R() * 2 - 1) * Hh, Rc * math.sin(a), 0, g])
+        elif q < .85: out.append([sg * G, (R() * 2 - 1) * Hh, (R() * 2 - 1) * Rc, 0, g])
+        else: out.append([sg * (Rc * math.cos(a) + G), -Hh if R() < .5 else Hh, Rc * math.sin(a), 0, g])
+    return np.array(out)
+
+
+def _mitades_contrarias(n, rng):
+    R = rng.random; out = []; Rr, G = .85, .12
+    for _ in range(n):
+        q = R()
+        if q < .3:
+            m = int(R() * 8) * math.pi / 4; t = R() * math.pi; v = [math.sin(t) * math.cos(m), math.cos(t), math.sin(t) * math.sin(m)]
+        else: v = _n3(rng.normal(size=3))
+        if q < .75:
+            l = v[0] < 0; out.append([v[0] * Rr + (-G if l else G), v[1] * Rr, v[2] * Rr, 0, 1 if l else 0, 1 if l else -1])
+        else:
+            sg = -1 if R() < .5 else 1; a = R() * 2 * math.pi; r = math.sqrt(R()) * Rr
+            out.append([sg * G, r * math.cos(a), r * math.sin(a), 0, 1 if sg < 0 else 0, 1 if sg < 0 else -1])
+    return np.array(out)
+
+
+def _esferas_contrarias(n, rng):
+    R = rng.random; out = []; SH = [(.92, 1, 1), (.66, 0, -1), (.4, 1, 2)]
+    for _ in range(n):
+        u = R(); r, g, sp = SH[0 if u < .5 else 1 if u < .82 else 2]
+        if R() < .5:
+            m = int(R() * 12) * math.pi / 6; t = R() * math.pi; v = [math.sin(t) * math.cos(m), math.cos(t), math.sin(t) * math.sin(m)]
+        else: v = _n3(rng.normal(size=3))
+        out.append([v[0] * r, v[1] * r, v[2] * r, 0, g, sp])
+    return np.array(out)
+
+
+def _cubos_contrarios(n, rng):
+    R = rng.random; out = []; ed = []; CB = [(.8, 1, 1), (.46, 0, -1)]
+    for x in (-1, 1):
+        for y in (-1, 1):
+            for z in (-1, 1):
+                p = [x, y, z]
+                for k in range(3):
+                    if p[k] < 0: q_ = list(p); q_[k] = 1; ed.append((np.array(p, float), np.array(q_, float)))
+    for _ in range(n):
+        H, g, sp = CB[0 if R() < .6 else 1]
+        if R() < .72:
+            a, b = ed[int(R() * 12)]; out.append(list((a + (b - a) * R()) * H) + [0, g, sp])
+        else:
+            k = int(R() * 3); p = [0., 0., 0.]; p[k] = -H if R() < .5 else H; p[(k + 1) % 3] = (R() * 2 - 1) * H; p[(k + 2) % 3] = (R() * 2 - 1) * H; out.append(p + [0, g, sp])
+    return np.array(out)
+
+
+def _rodajas(n, rng):
+    R = rng.random; out = []; Rr = .88
+    for _ in range(n):
+        k = int(R() * 7); y = -.78 + k * .26; r = math.sqrt(max(.02, Rr * Rr - y * y)); a = R() * 2 * math.pi; q = R()
+        if q < .35:
+            m = int(R() * 12) * math.pi / 6; rr = math.sqrt(R()) * r; p = [rr * math.cos(m), y, rr * math.sin(m)]
+        elif q < .55: p = [r * math.cos(a), y, r * math.sin(a)]
+        else:
+            rr = math.sqrt(R()) * r; p = [rr * math.cos(a), y, rr * math.sin(a)]
+        out.append(p + [0, k % 2, -1 if k % 2 else 1])
+    return np.array(out)
+
+
 def formas(nombre, n, rng, palabra="USA"):
     if nombre == "esfera":
         M, P = 12, 9
@@ -868,6 +982,15 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "cubitos": return _cubitos(n, rng)
     if nombre == "conos_anidados": return _conos_anidados(n, rng)
     if nombre == "cubo_puntos": return _cubo_puntos(n, rng)
+    if nombre == "cubo_partido": return _cubo_partido(n, rng)
+    if nombre == "esfera_diagonal": return _esfera_diagonal(n, rng)
+    if nombre == "toro_partido": return _toro_partido(n, rng)
+    if nombre == "cono_partido": return _cono_partido(n, rng)
+    if nombre == "cilindro_partido": return _cilindro_partido(n, rng)
+    if nombre == "mitades_contrarias": return _mitades_contrarias(n, rng)
+    if nombre == "esferas_contrarias": return _esferas_contrarias(n, rng)
+    if nombre == "cubos_contrarios": return _cubos_contrarios(n, rng)
+    if nombre == "rodajas": return _rodajas(n, rng)
     sys.exit("forma desconocida: " + nombre)
 
 
@@ -898,7 +1021,9 @@ def main():
                                                   "calabaza", "reloj_arena", "luna", "teseracto", "bobina", "sierpinski", "futbol_americano", "baloncesto", "futbol", "ovni",
                                                   "cohete", "estrella", "copo", "arbol_navidad", "fantasma", "calavera", "telarana", "texto3d", "joya", "bandera", "muneco_nieve",
                                                   "baston_caramelo", "dado", "moneda", "esfera_fibonacci", "medusa", "mariposa", "planeta", "arbol_fractal", "cometa", "nebulosa",
-                                                  "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados"])
+                                                  "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
+                                                  "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
+                                                  "cubos_contrarios", "rodajas"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -928,7 +1053,8 @@ def main():
     rng = np.random.default_rng(a.semilla)
     pts = formas(a.forma, a.puntos, rng, a.palabra)
     fijo = pts[:, 3] > .5 if pts.shape[1] >= 4 else np.zeros(len(pts), dtype=bool)   # puntos fijos en pantalla (no giran)
-    grupo = pts[:, 4] if pts.shape[1] >= 5 else None                                   # objetos de dos colores: grupo 1 = color de arriba, 0 = color de abajo
+    grupo = pts[:, 4] if pts.shape[1] >= 5 else None
+    giro = pts[:, 5] if pts.shape[1] >= 6 else np.ones(len(pts))                       # cada grupo puede girar a su propio ritmo (1, -1, 2...)                                   # objetos de dos colores: grupo 1 = color de arriba, 0 = color de abajo
     pts = pts[:, :3]
     texto = capa_texto(a.arriba, a.abajo)
     pbg, ptx, pa, pb = PALETAS[a.paleta]
@@ -965,7 +1091,7 @@ def main():
 
     def fotograma(i):
         ang = sgn * 2 * math.pi * vueltas * i / total
-        ca, sa = math.cos(ang), math.sin(ang)
+        ca, sa = np.cos(ang * giro), np.sin(ang * giro)
         x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
         x1 = np.where(fijo, x, x * ca + z * sa); z1 = -x * sa + z * ca
         y2 = np.where(fijo, y, y * ct - z1 * st); z2 = np.where(fijo, 0., y * st + z1 * ct)
