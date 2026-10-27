@@ -1451,7 +1451,7 @@ def _estimulo(nombre, S=2):
     """(imagen RGB, mascara de la figura): colores complementarios sobre negro."""
     im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); mk = Image.new("L", (W * S, H * S), 0); d = ImageDraw.Draw(im); dm = ImageDraw.Draw(mk); cx, cy = W * S / 2, H * S * .5
     if nombre == "residual_usa":           # bandera de EE.UU. con los colores invertidos: cian = rojo, negro = blanco, amarillo = azul
-        fw = 900 * S; fh = fw / 1.9; x0, y0 = cx - fw / 2, cy - fh / 2
+        fw = 1000 * S; fh = fw / 1.9; x0, y0 = cx - fw / 2, cy - fh / 2
         for k in range(13): d.rectangle((x0, y0 + k * fh / 13, x0 + fw, y0 + (k + 1) * fh / 13 + 1), fill=(0, 255, 255) if k % 2 == 0 else (0, 0, 0))
         cw, ch = fw * .4, fh * 7 / 13; d.rectangle((x0, y0, x0 + cw, y0 + ch), fill=(255, 255, 0)); dm.rectangle((x0, y0, x0 + fw, y0 + fh), fill=255)
         for r in range(9):
@@ -1477,39 +1477,74 @@ def _estimulo(nombre, S=2):
 
 
 def render_residual(a):
-    T2 = 6; T1 = max(6, int(round(a.seg)) - T2); total = (T1 + T2) * a.fps
-    est, mk = _estimulo(a.forma); halo = np.asarray(Image.fromarray(est.astype(np.uint8)).filter(ImageFilter.GaussianBlur(38)), dtype=np.float32)
-    cx, cy = W / 2, H * .5; rng = np.random.default_rng(a.semilla); NP = 90
-    px, py, pv, pb = rng.random(NP) * W, rng.random(NP) * H, 14 + rng.random(NP) * 26, .12 + rng.random(NP) * .3
-    f1, f2, f3 = ImageFont.truetype(_SM, 48.8), ImageFont.truetype(_SM, 120), ImageFont.truetype(_SMI, 40)
+    """Test de imagen residual en tres tiempos: mirar el punto (con animacion y cuenta), blanco, y revelacion de los colores reales."""
+    T2, T3 = 5.0, 2.5; T1 = max(6.0, a.seg - T2 - T3); total = int(round((T1 + T2 + T3) * a.fps)); fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
+    P = lambda n, sz: ImageFont.truetype(os.path.join(fp, n), sz)
+    fT, fS, fN, fL = P("Poppins-ExtraBold.ttf", 66), P("SpaceMono-Regular.ttf", 38), P("Poppins-ExtraBold.ttf", 170), P("Poppins-SemiBold.ttf", 44)
+    est, mk = _estimulo(a.forma); cx, cy = W / 2, H * .5
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32); rad = np.hypot((xx - cx) / W, (yy - cy) / H * .75)
+    fondo = (np.array([16, 26, 46], np.float32) * np.clip(1 - rad * 1.7, 0, 1)[..., None] ** 1.5 + np.array([2, 3, 8], np.float32)).astype(np.float32)
+    halo = np.asarray(Image.fromarray(est.astype(np.uint8)).filter(ImageFilter.GaussianBlur(46)), dtype=np.float32)
+    ys, xs = np.where(mk[..., 0] > .5); y0, y1, x0, x1 = ys.min(), ys.max(), xs.min(), xs.max()               # recuadro de la figura, para la revelacion
+    rng = np.random.default_rng(a.semilla); NP = 46
+    bx, by, br_, bv, bb, bp = rng.random(NP) * W, rng.random(NP) * H, 8 + rng.random(NP) * 26, 10 + rng.random(NP) * 22, .05 + rng.random(NP) * .10, rng.random(NP) * 6
+    def sprite(r):
+        g = np.mgrid[-r:r + 1, -r:r + 1].astype(np.float32); d = np.hypot(g[0], g[1]) / r; return np.clip(1 - d, 0, 1) ** 1.6
+    sp = [sprite(int(r)) for r in br_]
+    def mezcla(c, extra=0): return c
+    def texto(im, y, t, f, col, ancho=.84, interl=84, alpha=255):
+        d = ImageDraw.Draw(im, "RGBA")
+        for j, l in enumerate(envolver(d, t, f, W * ancho)): d.text((W / 2, y + j * interl), l, font=f, fill=col + (alpha,), anchor="ms")
+    def ease(u): u = min(1, max(0, u)); return u * u * (3 - 2 * u)
     def cuadro(i):
-        t = i / a.fps; d_ = None
-        if t < T1:
-            img = np.zeros((H, W, 3), np.float32) + halo * .30                                                    # resplandor suave alrededor de la figura
-            for k in range(NP):                                                                                   # polvo de luz que sube despacio (no toca los bordes de la figura)
-                y = (py[k] - pv[k] * t) % H; x = px[k] + 10 * math.sin(t * .7 + k); img[int(y):int(y) + 3, int(x):int(x) + 3] += 255 * pb[k]
-            br = 1 + .04 * math.sin(2 * math.pi * t / 5)                                                          # la figura "respira" apenas, sin mover sus bordes
-            img = img * (1 - mk) + np.clip(est * br, 0, 255) * mk
-            im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d_ = ImageDraw.Draw(im, "RGBA")
-            rr = 36 + 5 * math.sin(2 * math.pi * t / 1.6); d_.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(255, 255, 255, 150), width=3)    # anillo que late: ayuda a no despegar la vista
-            d_.ellipse((cx - 17, cy - 17, cx + 17, cy + 17), fill=(0, 0, 0, 255)); d_.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=(255, 255, 255, 255))
-            for j, l in enumerate(envolver(d_, a.arriba, f1, W * .7)): d_.text((W / 2, 375 + j * 74), l, font=f1, fill=(255, 255, 255, 255), anchor="ms")
-            d_.text((W / 2, 1590), str(int(math.ceil(T1 - t))), font=f2, fill=(255, 255, 255, 255), anchor="ms")
-            d_.rounded_rectangle((W / 2 - 320, 1640, W / 2 + 320, 1648), radius=4, fill=(255, 255, 255, 40))
-            d_.rounded_rectangle((W / 2 - 320, 1640, W / 2 - 320 + 640 * (1 - t / T1), 1648), radius=4, fill=(255, 255, 255, 190))
-        else:
-            im = Image.new("RGB", (W, H), (255, 255, 255)); d_ = ImageDraw.Draw(im, "RGBA"); u = t - T1
-            rr = 30 + 4 * math.sin(2 * math.pi * u / 1.6); d_.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(0, 0, 0, 70), width=2)
-            d_.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=(0, 0, 0, 255))
-            d_.text((W / 2, 1560), a.abajo, font=f3, fill=(0, 0, 0, int(255 * min(1, u / 1.2))), anchor="ms")
+        t = i / a.fps
+        if t < T1:                                                                                              # --- 1) mirar el punto
+            img = fondo + halo * .30 * ease(t / 1.0)
+            for k in range(NP):                                                                                 # luces de fondo que flotan (bokeh)
+                y = int((by[k] - bv[k] * t) % H); x = int(bx[k] + 14 * math.sin(t * .6 + bp[k])); r = sp[k].shape[0] // 2
+                ya, yb, xa, xb = max(0, y - r), min(H, y + r + 1), max(0, x - r), min(W, x + r + 1)
+                if yb > ya and xb > xa: img[ya:yb, xa:xb] += (sp[k][ya - (y - r):yb - (y - r), xa - (x - r):xb - (x - r)] * 255 * bb[k])[..., None] * np.array([.7, .85, 1], np.float32)
+            u = ease(t / 1.0); br = 1 + .03 * math.sin(2 * math.pi * t / 4)                                      # la figura aparece suave y respira apenas
+            img = img * (1 - mk * u) + np.clip(est * br, 0, 255) * mk * u
+            im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d = ImageDraw.Draw(im, "RGBA")
+            prog = t / T1; rr = 46
+            d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(255, 255, 255, 60), width=4)               # anillo de progreso alrededor del punto
+            d.arc((cx - rr, cy - rr, cx + rr, cy + rr), -90, -90 + 360 * prog, fill=(255, 255, 255, 235), width=5)
+            pul = 1 + .18 * math.sin(2 * math.pi * t / 1.2); d.ellipse((cx - 15 * pul, cy - 15 * pul, cx + 15 * pul, cy + 15 * pul), fill=(0, 0, 0, 255)); d.ellipse((cx - 10 * pul, cy - 10 * pul, cx + 10 * pul, cy + 10 * pul), fill=(255, 255, 255, 255))
+            texto(im, 330, a.arriba, fT, (255, 255, 255), interl=82)
+            sub = "sin parpadear" if t < 3 else ("seguí mirando el punto" if t < T1 - 2.5 else "ya casi…")
+            d.text((W / 2, 330 + 82 * (len(envolver(d, a.arriba, fT, W * .84)) - 1) + 78), sub, font=fS, fill=(170, 200, 255, 230), anchor="ms")
+            n = str(int(math.ceil(T1 - t))); d.text((W / 2, 1500), n, font=fN, fill=(255, 255, 255, 255), anchor="ms")
+            return im.tobytes()
+        if t < T1 + T2:                                                                                         # --- 2) blanco
+            u = t - T1; im = Image.new("RGB", (W, H), (255, 255, 255)); d = ImageDraw.Draw(im, "RGBA")
+            rr = 34 + 5 * math.sin(2 * math.pi * u / 1.6); d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(0, 0, 0, 55), width=3)
+            d.ellipse((cx - 15, cy - 15, cx + 15, cy + 15), fill=(0, 0, 0, 255)); d.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=(255, 255, 255, 255))
+            texto(im, 330, a.abajo, fT, (20, 20, 30), interl=82, alpha=int(255 * ease(u / .5)))
+            if u > 1.6: d.text((W / 2, 330 + 82 * (len(envolver(d, a.abajo, fT, W * .84)) - 1) + 78), "seguí mirando el punto", font=fS, fill=(90, 90, 110, int(255 * ease((u - 1.6) / .6))), anchor="ms")
+            if u > 3.4: d.text((W / 2, 1560), "parpadeá una vez", font=fS, fill=(90, 90, 110, int(255 * ease((u - 3.4) / .6))), anchor="ms")
+            return im.tobytes()
+        u = t - T1 - T2                                                                                         # --- 3) revelacion: lo que mirabas vs lo que aparecio
+        img = fondo.copy(); im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d = ImageDraw.Draw(im, "RGBA"); k_ = ease(u / .6)
+        texto(im, 330, (a.palabra if a.palabra and a.palabra != "USA" else "Tu cerebro puso los colores"), fT, (255, 255, 255), interl=82, alpha=int(255 * k_))
+        rec = est[y0:y1 + 1, x0:x1 + 1]; esc = min(620 / rec.shape[1], 430 / rec.shape[0])
+        for j, (arr, etq, yc) in enumerate(((rec, "lo que mirabas", 800), (255 - rec, "lo que viste", 1330))):
+            pim = Image.fromarray(arr.astype(np.uint8)).resize((int(arr.shape[1] * esc), int(arr.shape[0] * esc)), Image.LANCZOS)
+            if j == 1: ex = (255 - est) * mk; g_ = Image.fromarray(np.clip(ex, 0, 255).astype(np.uint8)).crop((x0, y0, x1 + 1, y1 + 1)).resize(pim.size).filter(ImageFilter.GaussianBlur(24)); im.paste(Image.blend(Image.new("RGB", pim.size), g_, .0), (0, 0)) if False else None
+            pos = (int(W / 2 - pim.width / 2), int(yc - pim.height / 2 + 14 * (1 - k_)))
+            lay = Image.new("RGBA", im.size, (0, 0, 0, 0)); lay.paste(pim.convert("RGBA"), pos); lay.putalpha(lay.getchannel("A").point(lambda v: int(v * k_))); im = Image.alpha_composite(im.convert("RGBA"), lay).convert("RGB")
+            d = ImageDraw.Draw(im, "RGBA"); d.text((W / 2, yc + pim.height / 2 + 62), etq, font=fL, fill=(170, 200, 255, int(255 * k_)), anchor="ms")
+        d.polygon([(W / 2 - 34, 1040), (W / 2 + 34, 1040), (W / 2, 1090)], fill=(255, 255, 255, int(255 * k_)))
         return im.tobytes()
     if a.preview: Image.frombytes("RGB", (W, H), cuadro(int(a.preview_t * total))).save("preview.png"); print("preview.png"); return
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
-           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-maxrate", "10M", "-bufsize", "20M", "-profile:v", "high",
+           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-maxrate", "12M", "-bufsize", "24M", "-profile:v", "high",
            "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    for i in range(total): p.stdin.write(cuadro(i))
-    p.stdin.close(); p.wait(); print(f"listo: {T1} s de color + {T2} s de blanco")
+    for i in range(total):
+        p.stdin.write(cuadro(i))
+        if i % a.fps == 0: print(f"\r{i // a.fps}/{int(total / a.fps)} s", end="", flush=True)
+    p.stdin.close(); p.wait(); print(f"\nlisto: {T1:g} s mirando + {T2:g} s blanco + {T3:g} s revelacion")
 
 
 def render_pared(a):
