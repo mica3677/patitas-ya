@@ -1439,21 +1439,21 @@ def render_campo(a):
 
 # ---------------------------------------------------------------------------------------------------------------
 # Formato 3: imagen residual. Se mira un punto sobre colores "al reves" y despues sobre blanco: aparecen los colores reales.
-# Formato 4: mascara hueca. Un molde de cara visto desde adentro: el cerebro lo ve como cara que sale hacia vos.
+# Formato 4: pared de cafe. Lineas paralelas que parecen torcidas; al final se marcan para mostrar que son rectas.
 # ---------------------------------------------------------------------------------------------------------------
-RESIDUALES = ["residual_usa", "residual_corazon", "residual_circulos"]
-MASCARAS = ["mascara_hueca"]
+RESIDUALES = ["residual_usa", "residual_corazon", "residual_circulos", "residual_arcoiris"]
+PAREDES = ["pared_cafe"]
 _SM = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts", "SpaceMono-Regular.ttf")
+_SMI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts", "SpaceMono-Italic.ttf")
 
 
 def _estimulo(nombre, S=2):
-    """Imagen (RGB) del estimulo: colores complementarios sobre negro, con el punto de fijacion en el centro."""
-    im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); d = ImageDraw.Draw(im); cx, cy = W * S / 2, H * S * .5
-    if nombre == "residual_usa":           # bandera de EE.UU. en colores invertidos: cian = rojo, negro = blanco, amarillo = azul
+    """(imagen RGB, mascara de la figura): colores complementarios sobre negro."""
+    im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); mk = Image.new("L", (W * S, H * S), 0); d = ImageDraw.Draw(im); dm = ImageDraw.Draw(mk); cx, cy = W * S / 2, H * S * .5
+    if nombre == "residual_usa":           # bandera de EE.UU. con los colores invertidos: cian = rojo, negro = blanco, amarillo = azul
         fw = 900 * S; fh = fw / 1.9; x0, y0 = cx - fw / 2, cy - fh / 2
-        for k in range(13):
-            d.rectangle((x0, y0 + k * fh / 13, x0 + fw, y0 + (k + 1) * fh / 13 + 1), fill=(0, 255, 255) if k % 2 == 0 else (0, 0, 0))
-        cw, ch = fw * .4, fh * 7 / 13; d.rectangle((x0, y0, x0 + cw, y0 + ch), fill=(255, 255, 0))
+        for k in range(13): d.rectangle((x0, y0 + k * fh / 13, x0 + fw, y0 + (k + 1) * fh / 13 + 1), fill=(0, 255, 255) if k % 2 == 0 else (0, 0, 0))
+        cw, ch = fw * .4, fh * 7 / 13; d.rectangle((x0, y0, x0 + cw, y0 + ch), fill=(255, 255, 0)); dm.rectangle((x0, y0, x0 + fw, y0 + fh), fill=255)
         for r in range(9):
             n = 6 if r % 2 == 0 else 5
             for c in range(n):
@@ -1461,98 +1461,92 @@ def _estimulo(nombre, S=2):
                 d.polygon([(sx + (rr if k % 2 == 0 else rr * .4) * math.sin(k * math.pi / 5), sy - (rr if k % 2 == 0 else rr * .4) * math.cos(k * math.pi / 5)) for k in range(10)], fill=(0, 0, 0))
     elif nombre == "residual_corazon":     # corazon cian: se ve rojo
         pp = [(cx + 16 * math.sin(a) ** 3 * 26 * S, cy - 40 * S - (13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)) * 26 * S + 10 * S) for a in np.linspace(0, 2 * math.pi, 240)]
-        d.polygon(pp, fill=(0, 255, 255))
+        d.polygon(pp, fill=(0, 255, 255)); dm.polygon(pp, fill=255)
+    elif nombre == "residual_arcoiris":    # anillos en los complementarios del arcoiris: se ve un arcoiris real
+        cols = [(0, 255, 255), (0, 128, 255), (0, 0, 255), (255, 0, 255), (255, 128, 0), (105, 255, 0)]
+        for k, c in enumerate(cols):
+            r = (400 - k * 58) * S; d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=c); dm.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
+        r = 52 * S; d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(0, 0, 0))
     else:                                  # tres discos: cian, magenta y amarillo se ven rojo, verde y azul
-        R = 230 * S; off = 215 * S
+        R = 143 * S; off = 215 * S
         for k, col in enumerate([(0, 255, 255), (255, 0, 255), (255, 255, 0)]):
             a = -math.pi / 2 + k * 2 * math.pi / 3; x, y = cx + off * math.cos(a), cy + off * math.sin(a) + 20 * S
-            d.ellipse((x - R * .62, y - R * .62, x + R * .62, y + R * .62), fill=col)
-    return im.resize((W, H), Image.LANCZOS) if S > 1 else im
-
-
-def _punto(im, color, outline):
-    d = ImageDraw.Draw(im); cx, cy = W / 2, H * .5
-    d.ellipse((cx - 17, cy - 17, cx + 17, cy + 17), fill=outline); d.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=color); return im
+            d.ellipse((x - R, y - R, x + R, y + R), fill=col); dm.ellipse((x - R, y - R, x + R, y + R), fill=255)
+    if S > 1: im = im.resize((W, H), Image.LANCZOS); mk = mk.resize((W, H), Image.LANCZOS)
+    return np.asarray(im, dtype=np.float32), np.asarray(mk, dtype=np.float32)[..., None] / 255
 
 
 def render_residual(a):
-    fuente = lambda sz: ImageFont.truetype(_SM, sz)
-    T2 = 6; T1 = max(6, int(round(a.seg)) - T2)                       # segundos mirando el punto / segundos de blanco
-    est = _punto(_estimulo(a.forma), (255, 255, 255), (0, 0, 0)); blanco = _punto(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0, 0), (255, 255, 255))
-    def con_texto(base, col, arriba, abajo, grande=False):
-        im = base.copy(); d = ImageDraw.Draw(im); f1 = fuente(48.8)
-        for i, l in enumerate(envolver(d, arriba, f1, W * .7)): d.text((W / 2, 375 + i * 74), l, font=f1, fill=col, anchor="ms")
-        if abajo: d.text((W / 2, 1560), abajo, font=fuente(110 if grande else 40), fill=col, anchor="ms")
-        return np.asarray(im).tobytes()
-    cuadros = [con_texto(est, (255, 255, 255), a.arriba, str(T1 - k), True) for k in range(T1)] + [con_texto(blanco, (0, 0, 0), "", a.abajo)]
+    T2 = 6; T1 = max(6, int(round(a.seg)) - T2); total = (T1 + T2) * a.fps
+    est, mk = _estimulo(a.forma); halo = np.asarray(Image.fromarray(est.astype(np.uint8)).filter(ImageFilter.GaussianBlur(38)), dtype=np.float32)
+    cx, cy = W / 2, H * .5; rng = np.random.default_rng(a.semilla); NP = 90
+    px, py, pv, pb = rng.random(NP) * W, rng.random(NP) * H, 14 + rng.random(NP) * 26, .12 + rng.random(NP) * .3
+    f1, f2, f3 = ImageFont.truetype(_SM, 48.8), ImageFont.truetype(_SM, 120), ImageFont.truetype(_SMI, 40)
+    def cuadro(i):
+        t = i / a.fps; d_ = None
+        if t < T1:
+            img = np.zeros((H, W, 3), np.float32) + halo * .30                                                    # resplandor suave alrededor de la figura
+            for k in range(NP):                                                                                   # polvo de luz que sube despacio (no toca los bordes de la figura)
+                y = (py[k] - pv[k] * t) % H; x = px[k] + 10 * math.sin(t * .7 + k); img[int(y):int(y) + 3, int(x):int(x) + 3] += 255 * pb[k]
+            br = 1 + .04 * math.sin(2 * math.pi * t / 5)                                                          # la figura "respira" apenas, sin mover sus bordes
+            img = img * (1 - mk) + np.clip(est * br, 0, 255) * mk
+            im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d_ = ImageDraw.Draw(im, "RGBA")
+            rr = 36 + 5 * math.sin(2 * math.pi * t / 1.6); d_.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(255, 255, 255, 150), width=3)    # anillo que late: ayuda a no despegar la vista
+            d_.ellipse((cx - 17, cy - 17, cx + 17, cy + 17), fill=(0, 0, 0, 255)); d_.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=(255, 255, 255, 255))
+            for j, l in enumerate(envolver(d_, a.arriba, f1, W * .7)): d_.text((W / 2, 375 + j * 74), l, font=f1, fill=(255, 255, 255, 255), anchor="ms")
+            d_.text((W / 2, 1590), str(int(math.ceil(T1 - t))), font=f2, fill=(255, 255, 255, 255), anchor="ms")
+            d_.rounded_rectangle((W / 2 - 320, 1640, W / 2 + 320, 1648), radius=4, fill=(255, 255, 255, 40))
+            d_.rounded_rectangle((W / 2 - 320, 1640, W / 2 - 320 + 640 * (1 - t / T1), 1648), radius=4, fill=(255, 255, 255, 190))
+        else:
+            im = Image.new("RGB", (W, H), (255, 255, 255)); d_ = ImageDraw.Draw(im, "RGBA"); u = t - T1
+            rr = 30 + 4 * math.sin(2 * math.pi * u / 1.6); d_.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=(0, 0, 0, 70), width=2)
+            d_.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=(0, 0, 0, 255))
+            d_.text((W / 2, 1560), a.abajo, font=f3, fill=(0, 0, 0, int(255 * min(1, u / 1.2))), anchor="ms")
+        return im.tobytes()
+    if a.preview: Image.frombytes("RGB", (W, H), cuadro(int(a.preview_t * total))).save("preview.png"); print("preview.png"); return
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
-           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
+           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-maxrate", "10M", "-bufsize", "20M", "-profile:v", "high",
            "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"]
-    if a.preview:
-        k = int(a.preview_t * (T1 + T2)); Image.frombytes("RGB", (W, H), cuadros[min(k, T1) if k < T1 else -1]).save("preview.png"); print("preview.png"); return
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    for k in range(T1 + T2):
-        for _ in range(a.fps): p.stdin.write(cuadros[k] if k < T1 else cuadros[-1])
+    for i in range(total): p.stdin.write(cuadro(i))
     p.stdin.close(); p.wait(); print(f"listo: {T1} s de color + {T2} s de blanco")
 
 
-def _altura(x, y):
-    """Relieve de una cara: domo + nariz, cejas, cuencas, pomulos, labios y menton. Devuelve z (0 fuera del ovalo)."""
-    g = lambda cx, cy, sx, sy, A: A * np.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2))
-    r2 = (x / .78) ** 2 + (y / 1.15) ** 2
-    z = .42 * np.clip(1 - r2, 0, None) ** .55
-    z += .19 * np.clip((y + .42) / .72, 0, 1) * np.exp(-(x / .12) ** 2) * np.clip((.36 - y) / .16, 0, 1)         # puente de la nariz
-    z += g(0, -.42, .15, .13, .17) + g(.15, -.46, .09, .07, .07) + g(-.15, -.46, .09, .07, .07)          # punta y alas
-    z -= g(.07, -.53, .04, .03, .07) + g(-.07, -.53, .04, .03, .07)                                    # fosas
-    z += g(.3, .39, .27, .07, .075) + g(-.3, .39, .27, .07, .075)                                      # cejas
-    z -= g(.32, .2, .17, .085, .14) + g(-.32, .2, .17, .085, .14)                                      # cuencas
-    z += g(.48, -.2, .18, .2, .07) + g(-.48, -.2, .18, .2, .07)                                        # pomulos
-    z += g(0, -.7, .24, .05, .06) + g(0, -.83, .2, .06, .06) - g(0, -.765, .22, .014, .05)             # labios y boca
-    z += g(0, -1.0, .22, .12, .09)                                                                      # menton
-    return z
-
-
-def render_mascara(a):
-    st = .0021; xs = np.arange(-.78, .78 + st, st); ys = np.arange(-1.15, 1.15 + st, st); X, Y = np.meshgrid(xs, ys)
-    ins = (X / .78) ** 2 + (Y / 1.15) ** 2 <= 1; Z = _altura(X, Y); gy, gx = np.gradient(Z, st)
-    N = np.stack([-gx, -gy, np.ones_like(Z)], -1); N /= np.linalg.norm(N, axis=-1, keepdims=True)
-    P = np.stack([X, Y, Z], -1)[ins]; Nn = N[ins]
-    ph = np.arange(0, 2 * math.pi, st / 1.1)                                                             # el borde del molde tiene grosor
-    for dz in np.arange(0, .16, st):
-        bx, by = .78 * np.cos(ph), 1.15 * np.sin(ph); bz = _altura(bx, by) - dz
-        nx, ny = bx / .78 ** 2, by / 1.15 ** 2; nn = np.hypot(nx, ny)
-        P = np.vstack([P, np.stack([bx, by, bz], -1)]); Nn = np.vstack([Nn, np.stack([nx / nn, ny / nn, np.zeros_like(nx)], -1)])
-    pal = PALETAS[a.paleta]; c_bg = rgb(a.fondo or pal[0]); c_tx = rgb(a.texto or pal[1]); base_c = np.array(rgb(a.color or pal[2]), dtype=np.float32)
-    texto = capa_texto(a.arriba, a.abajo, a.diseno); fondo = c_bg + (c_tx - c_bg) * texto[..., None]
-    S = W * a.figura / 100; cy = H * (.5 if a.diseno == "triangulo" else .47); tilt = math.radians(a.inclinacion or 8); ct, stl = math.cos(tilt), math.sin(tilt)
-    L = np.array([-.35, .55, .76]); L /= np.linalg.norm(L)
-    total = int(round(a.seg * a.fps)); vueltas = a.vueltas_min / 60 * a.seg if a.exacta else max(1, round(a.vueltas_min / 60 * a.seg)); sgn = -1 if a.reves else 1
-    def fotograma(i):
-        ang = sgn * 2 * math.pi * vueltas * i / total; ca, sa = math.cos(ang), math.sin(ang)
-        x = P[:, 0] * ca + P[:, 2] * sa; z = -P[:, 0] * sa + P[:, 2] * ca; y = P[:, 1]
-        nx = Nn[:, 0] * ca + Nn[:, 2] * sa; nz = -Nn[:, 0] * sa + Nn[:, 2] * ca; ny = Nn[:, 1]
-        y2 = y * ct - z * stl; z2 = y * stl + z * ct; ny2 = ny * ct - nz * stl; nz2 = ny * stl + nz * ct
-        flip = np.where(nz2 < 0, -1, 1)                                                                  # iluminacion de dos caras: se ve el adentro del molde
-        sh = .16 + .84 * np.clip((nx * L[0] + ny2 * L[1] + nz2 * L[2]) * flip, 0, 1) ** 1.1
-        px = np.rint(W / 2 + x * S).astype(np.int64); py = np.rint(cy - y2 * S).astype(np.int64)
-        order = np.argsort(z2); buf = np.full(W * H, -1.0, dtype=np.float32)
-        for ox, oy in ((0, 0), (1, 0), (0, 1), (1, 1)):
-            ix = px + ox; iy = py + oy; ok = (ix >= 0) & (ix < W) & (iy >= 0) & (iy < H); idx = (iy * W + ix)[ok]; vv = sh[ok]
-            o = np.argsort(z2[ok]); b2 = np.full(W * H, -1.0, dtype=np.float32); b2[idx[o]] = vv[o]
-            m = b2 >= 0; buf[m] = b2[m] if ox == 0 and oy == 0 else np.where(buf[m] >= 0, buf[m], b2[m])
-        sub = buf.reshape(H, W); cov = (sub >= 0)[..., None]
-        img = np.where(cov, np.clip(sub, 0, 1)[..., None] * base_c, fondo)
-        im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(.8))
-        return np.asarray(im).tobytes()
-    if a.preview: Image.frombytes("RGB", (W, H), fotograma(int(total * a.preview_t))).save("preview.png"); print("preview.png"); return
+def render_pared(a):
+    """Pared de cafe: filas de cuadrados blancos y negros desplazadas, separadas por una linea gris. Las lineas parecen inclinadas; al final se marcan."""
+    rng = np.random.default_rng(a.semilla)
+    c1, c2 = np.array(rgb(a.color or "#ffffff"), np.float32), np.array(rgb(a.fondo or "#000000"), np.float32); gris = (c1 + c2) / 2
+    c_bg = np.array([10, 12, 18], np.float32); c_tx = np.array(rgb(a.texto or "#ffffff"), np.float32)
+    h = 100; sq = h; filas = 8; ancho = 1040; alto = filas * (h + 6) + 6; x0, y0 = (W - ancho) // 2, (H - alto) // 2 + 20
+    total = int(round(a.seg * a.fps)); t_rev = a.seg * .62; vel = a.vueltas_min * 5.0           # px/s
+    f1, f3 = ImageFont.truetype(_SM, 48.8), ImageFont.truetype(_SMI, 40)
+    tiles = np.zeros((alto, ancho, 3), np.float32); tiles[:] = gris
+    xs = np.arange(ancho)
+    def cuadro(i):
+        t = i / a.fps; img = np.zeros((H, W, 3), np.float32) + c_bg
+        t2 = tiles.copy()
+        for r in range(filas):
+            ya = 6 + r * (h + 6); off = ((r % 2) * sq / 2 + vel * t) % (2 * sq)
+            par = (((xs + off) // sq).astype(int) % 2) == 0
+            t2[ya:ya + h] = np.where(par[None, :, None], c1, c2)
+        img[y0:y0 + alto, x0:x0 + ancho] = t2
+        im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d_ = ImageDraw.Draw(im, "RGBA")
+        for j, l in enumerate(envolver(d_, a.arriba, f1, W * .7)): d_.text((W / 2, 375 + j * 74), l, font=f1, fill=tuple(int(v) for v in c_tx) + (255,), anchor="ms")
+        if t > t_rev:                                                                                     # revelacion: las lineas rojas se dibujan de izquierda a derecha y muestran que son paralelas
+            u = min(1, (t - t_rev) / 1.2)
+            for r in range(filas + 1):
+                yy = y0 + 3 + r * (h + 6); d_.line((x0 - 20, yy, x0 - 20 + (ancho + 40) * u, yy), fill=(255, 60, 60, 255), width=4)
+            d_.text((W / 2, 1560), a.abajo, font=f3, fill=tuple(int(v) for v in c_tx) + (int(255 * min(1, (t - t_rev) / 1.2)),), anchor="ms")
+        return im.tobytes()
+    if a.preview: Image.frombytes("RGB", (W, H), cuadro(int(a.preview_t * total))).save("preview.png"); print("preview.png"); return
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
            "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-maxrate", "10M", "-bufsize", "20M", "-profile:v", "high",
            "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for i in range(total):
-        p.stdin.write(fotograma(i))
+        p.stdin.write(cuadro(i))
         if i % a.fps == 0: print(f"\r{i // a.fps}/{int(a.seg)} s", end="", flush=True)
-    p.stdin.close(); p.wait(); print(f"\nlisto: {a.salida} ({vueltas} vueltas)")
+    p.stdin.close(); p.wait(); print(f"\nlisto: {a.salida}")
 
 
 def main():
@@ -1564,7 +1558,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS + RESIDUALES + MASCARAS)
+                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS + RESIDUALES + PAREDES)
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -1597,7 +1591,7 @@ def main():
 
     if a.forma in CAMPOS: return render_campo(a)
     if a.forma in RESIDUALES: return render_residual(a)
-    if a.forma in MASCARAS: return render_mascara(a)
+    if a.forma in PAREDES: return render_pared(a)
     rng = np.random.default_rng(a.semilla)
     pts = formas(a.forma, a.puntos, rng, a.palabra)
     fijo = pts[:, 3] > .5 if pts.shape[1] >= 4 else np.zeros(len(pts), dtype=bool)   # puntos fijos en pantalla (no giran)
