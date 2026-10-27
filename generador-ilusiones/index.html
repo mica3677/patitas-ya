@@ -76,6 +76,10 @@
     <option value="hiddenCircle">Figura escondida: círculo</option>
     <option value="hiddenArrow">Figura escondida: flecha</option>
     <option value="hiddenWord">Figura escondida: tu palabra</option>
+    <option value="resUSA">Imagen residual: bandera de EE.UU.</option>
+    <option value="resHeart">Imagen residual: corazón</option>
+    <option value="resDots">Imagen residual: tres círculos</option>
+    <option value="maskHollow">Máscara hueca (cara que sale o se hunde)</option>
         <option value="gem">Diamante (joya)</option>
     <option value="flag">Bandera de EE. UU.</option>
     <option value="snowman">Muñeco de nieve</option>
@@ -1022,6 +1026,7 @@ const shapes = {
     return g.map(p => [p[0], p[1], p[2], 0, 1, 1, p[3]]).concat(g.map(p => [-p[0], -p[1], -p[2], 0, 0, 1, p[3]]));
   },
   hiddenStar(){ return []; }, hiddenHeart(){ return []; }, hiddenBolt(){ return []; }, hiddenCircle(){ return []; }, hiddenArrow(){ return []; }, hiddenWord(){ return []; },
+  resUSA(){ return []; }, resHeart(){ return []; }, resDots(){ return []; }, maskHollow(){ return []; },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -1151,14 +1156,75 @@ function drawHidden(cy, cols){
   ctx.restore();
 }
 
+// ---- Imagen residual: se mira el punto sobre colores "al revés" y después sobre blanco ----
+const RESID = {resUSA:'residual_usa', resHeart:'residual_corazon', resDots:'residual_circulos'};
+function drawResidual(){
+  const v = $('shape').value, seg = Math.max(8, +$('r').value), T2 = 6, T1 = Math.max(6, Math.round(seg) - T2), tt = hidT % (T1 + T2), blanco = tt >= T1, cx = W/2, cy = H*.5;
+  ctx.fillStyle = blanco ? '#fff' : '#000'; ctx.fillRect(0, 0, W, H);
+  if (!blanco){
+    if (v === 'resUSA'){ const fw = 900, fh = fw/1.9, x0 = cx - fw/2, y0 = cy - fh/2;
+      for (let k = 0; k < 13; k++){ ctx.fillStyle = k % 2 ? '#000' : '#0ff'; ctx.fillRect(x0, y0 + k*fh/13, fw, fh/13 + 1); }
+      const cw = fw*.4, ch = fh*7/13; ctx.fillStyle = '#ff0'; ctx.fillRect(x0, y0, cw, ch); ctx.fillStyle = '#000';
+      for (let r = 0; r < 9; r++){ const n = r % 2 ? 5 : 6; for (let c = 0; c < n; c++){ const sx = x0 + cw*(n === 6 ? (c + .5)/6 : (c + 1)/6), sy = y0 + ch*(r + .6)/9.2, rr = fh*.032; ctx.beginPath();
+        for (let k = 0; k < 10; k++){ const q = k % 2 ? rr*.4 : rr; k ? ctx.lineTo(sx + q*Math.sin(k*Math.PI/5), sy - q*Math.cos(k*Math.PI/5)) : ctx.moveTo(sx, sy - q); } ctx.fill(); } } }
+    else if (v === 'resHeart'){ ctx.fillStyle = '#0ff'; ctx.beginPath();
+      for (let k = 0; k <= 240; k++){ const a = k/240*2*Math.PI, X = cx + 16*Math.sin(a)**3*26, Y = cy - 40 - (13*Math.cos(a) - 5*Math.cos(2*a) - 2*Math.cos(3*a) - Math.cos(4*a))*26 + 10; k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.fill(); }
+    else { [['#0ff'], ['#f0f'], ['#ff0']].forEach(([c], k) => { const a = -Math.PI/2 + k*2*Math.PI/3; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(cx + 215*Math.cos(a), cy + 215*Math.sin(a) + 20, 143, 0, 2*Math.PI); ctx.fill(); }); }
+  }
+  ctx.fillStyle = blanco ? '#000' : '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, 2*Math.PI); ctx.fill(); ctx.fillStyle = blanco ? '#fff' : '#000'; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, 2*Math.PI); ctx.fill();
+  ctx.fillStyle = blanco ? '#000' : '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, 2*Math.PI); ctx.fill();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = '400 48.8px "Space Mono", ui-monospace, Menlo, Consolas, monospace';
+  if (!blanco){ wrap($('top').value, W*0.7).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74)); ctx.font = '400 110px "Space Mono", ui-monospace, Menlo, Consolas, monospace'; ctx.fillText(String(Math.ceil(T1 - tt)), W/2, 1560); }
+  else { ctx.font = 'italic 400 40px "Space Mono", ui-monospace, Menlo, Consolas, monospace'; ctx.fillText($('bot').value, W/2, 1560); }
+}
+
+// ---- Máscara hueca: un molde de cara visto de frente (convexo) y de atrás (hueco) ----
+let MK = null, mkCanvas = null;
+function mkAltura(x, y){
+  const g = (cx, cy, sx, sy, A) => A*Math.exp(-(((x - cx)/sx)**2 + ((y - cy)/sy)**2)), r2 = (x/.78)**2 + (y/1.15)**2, cl = (v, a, b) => Math.min(b, Math.max(a, v));
+  let z = .42*Math.pow(Math.max(0, 1 - r2), .55);
+  z += .19*cl((y + .42)/.72, 0, 1)*Math.exp(-((x/.12)**2))*cl((.36 - y)/.16, 0, 1);
+  z += g(0, -.42, .15, .13, .17) + g(.15, -.46, .09, .07, .07) + g(-.15, -.46, .09, .07, .07) - g(.07, -.53, .04, .03, .07) - g(-.07, -.53, .04, .03, .07);
+  z += g(.3, .39, .27, .07, .075) + g(-.3, .39, .27, .07, .075) - g(.32, .2, .17, .085, .14) - g(-.32, .2, .17, .085, .14) + g(.48, -.2, .18, .2, .07) + g(-.48, -.2, .18, .2, .07);
+  z += g(0, -.7, .24, .05, .06) + g(0, -.83, .2, .06, .06) - g(0, -.765, .22, .014, .05) + g(0, -1, .22, .12, .09);
+  return z;
+}
+function mkBuild(){
+  const st = .0065, P = [], N = [];
+  for (let y = -1.15; y <= 1.15; y += st) for (let x = -.78; x <= .78; x += st){
+    if ((x/.78)**2 + (y/1.15)**2 > 1) continue; const hx = (mkAltura(x + st, y) - mkAltura(x - st, y))/(2*st), hy = (mkAltura(x, y + st) - mkAltura(x, y - st))/(2*st), n = Math.hypot(hx, hy, 1);
+    P.push(x, y, mkAltura(x, y)); N.push(-hx/n, -hy/n, 1/n); }
+  for (let dz = 0; dz < .16; dz += st) for (let a = 0; a < 2*Math.PI; a += st/1.1){
+    const bx = .78*Math.cos(a), by = 1.15*Math.sin(a), nx = bx/.78**2, ny = by/1.15**2, nn = Math.hypot(nx, ny); P.push(bx, by, mkAltura(bx, by) - dz); N.push(nx/nn, ny/nn, 0); }
+  MK = {P: Float32Array.from(P), N: Float32Array.from(N)};
+}
+function drawMask(cy){
+  if (!MK) mkBuild();
+  const S = W*(+$('z').value/100), hs = .5, bw = Math.ceil(1.9*S*hs), bh = Math.ceil(2.7*S*hs), tilt = (+$('t').value || 8)*Math.PI/180, ct = Math.cos(tilt), stl = Math.sin(tilt), ca = Math.cos(angle), sa = Math.sin(angle);
+  if (!mkCanvas){ mkCanvas = document.createElement('canvas'); }
+  if (mkCanvas.width !== bw || mkCanvas.height !== bh){ mkCanvas.width = bw; mkCanvas.height = bh; }
+  const g = mkCanvas.getContext('2d'), im = g.createImageData(bw, bh), D = im.data, ZB = new Float32Array(bw*bh).fill(-1e9), col = hex2rgb($('ca').value), L = [-.35, .55, .76], ln = Math.hypot(...L);
+  const P = MK.P, N = MK.N;
+  for (let i = 0; i < P.length; i += 3){
+    const x = P[i]*ca + P[i + 2]*sa, z = -P[i]*sa + P[i + 2]*ca, y = P[i + 1], nx = N[i]*ca + N[i + 2]*sa, nz0 = -N[i]*sa + N[i + 2]*ca, ny = N[i + 1];
+    const y2 = y*ct - z*stl, z2 = y*stl + z*ct, ny2 = ny*ct - nz0*stl, nz2 = ny*stl + nz0*ct, fl = nz2 < 0 ? -1 : 1;
+    const sh = .16 + .84*Math.pow(Math.max(0, Math.min(1, (nx*L[0] + ny2*L[1] + nz2*L[2])*fl/ln)), 1.1);
+    const px = Math.round(bw/2 + x*S*hs), py = Math.round(bh/2 - y2*S*hs);
+    for (let oy = 0; oy < 2; oy++) for (let ox = 0; ox < 2; ox++){ const X = px + ox, Y = py + oy; if (X < 0 || X >= bw || Y < 0 || Y >= bh) continue; const k = Y*bw + X;
+      if (z2 > ZB[k]){ ZB[k] = z2; D[k*4] = col[0]*sh; D[k*4 + 1] = col[1]*sh; D[k*4 + 2] = col[2]*sh; D[k*4 + 3] = 255; } }
+  }
+  g.putImageData(im, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(mkCanvas, W/2 - bw/(2*hs), cy - bh/(2*hs), bw/hs, bh/hs);
+}
+
 function draw(){
+  if (RESID[$('shape').value]){ drawResidual(); return; }
   ctx.fillStyle = $('cbg').value; ctx.fillRect(0,0,W,H);
   const cols = colores(); ensureStars();
   ctx.fillStyle = $('ctt').value; for (const st of stars){ ctx.globalAlpha = st[2]; ctx.fillRect(st[0], st[1], st[3], st[3]); }
   const tilt = +$('t').value*Math.PI/180, size = +$('s').value, dep = +$('d').value/100;
   const tri = $('dis').value === 'triangulo', R = W*(+$('z').value/100), cy = H*(tri ? .5 : .47);
   const ca = Math.cos(angle), sa = Math.sin(angle), ct = Math.cos(tilt), st = Math.sin(tilt);
-  let last = -1; const hid = !!HIDDEN[$('shape').value]; if (hid) drawHidden(cy, cols);
+  let last = -1; const hid = !!HIDDEN[$('shape').value] || $('shape').value === 'maskHollow'; if (HIDDEN[$('shape').value]) drawHidden(cy, cols); else if (hid) drawMask(cy);
   for (let i = 0; i < (hid ? 0 : pts.length); i++){
     const [x,y,z] = pts[i];
     if (bks[i] !== last){ last = bks[i]; ctx.fillStyle = cols[last]; }
@@ -1225,6 +1291,17 @@ $('shape').addEventListener('input', () => {                 // figura escondida
   applyPalette(PALETAS['Clásico']); $('top').value = '¿Qué ves dentro del círculo?'; $('bot').value = 'Comentá qué figura viste'; if ($('shape').value === 'hiddenWord' && $('word').value === 'USA') $('word').value = 'TU MENTE'; labels();
   $('msg').textContent = 'Mirá sin enfocar un punto fijo: la figura está escondida todo el video y solo existe mientras se mueve. Es un formato distinto al de los giros.';
 });
+$('shape').addEventListener('input', () => {                 // imagen residual y máscara hueca: formatos distintos al de los giros
+  const v = $('shape').value;
+  if (RESID[v]){
+    setV('r', 26); $('dis').value = 'triangulo'; $('rev').checked = false; setV('e', 0); setV('b', 0); $('top').value = 'Mirá el punto del centro sin parpadear'; $('bot').value = 'Ahora mirá el punto en blanco'; labels();
+    $('msg').textContent = 'Formato imagen residual: 20 s de color con cuenta regresiva y 6 s de blanco. Los colores que ves ahora son "al revés" a propósito.';
+  } else if (v === 'maskHollow'){
+    setV('v', 4); setV('t', 8); setV('z', 38); setV('r', 15); setV('b', 0); setV('e', 0); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
+    applyPalette(PALETAS['Clásico']); $('cbg').value = '#10141a'; $('top').value = '¿Sale hacia vos o es hueca?'; $('bot').value = 'Comentá cuánto tardaste en verla'; labels();
+    $('msg').textContent = 'Máscara hueca: arranca como cara normal y al girar muestra el lado hueco, que parece salir hacia vos. 4 vueltas por minuto.';
+  }
+});
 ['n','shape','word'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
 if (document.fonts && document.fonts.load) { document.fonts.load('400 20px "Space Mono"').catch(() => {}); document.fonts.load('italic 400 20px "Space Mono"').catch(() => {}); }
 if (document.fonts && document.fonts.load) document.fonts.load('800 100px Poppins').then(() => { if ($('shape').value === 'text3d') build(); }).catch(() => {});
@@ -1236,7 +1313,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',hiddenStar:'campo_estrella',hiddenHeart:'campo_corazon',hiddenBolt:'campo_rayo',hiddenCircle:'campo_circulo',hiddenArrow:'campo_flecha',hiddenWord:'campo_palabra',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',hiddenStar:'campo_estrella',hiddenHeart:'campo_corazon',hiddenBolt:'campo_rayo',hiddenCircle:'campo_circulo',hiddenArrow:'campo_flecha',hiddenWord:'campo_palabra',resUSA:'residual_usa',resHeart:'residual_corazon',resDots:'residual_circulos',maskHollow:'mascara_hueca',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

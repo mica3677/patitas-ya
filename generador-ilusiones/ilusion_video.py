@@ -1437,6 +1437,124 @@ def render_campo(a):
     p.stdin.close(); p.wait(); print(f"\nlisto: {salida} ({W}x{H}, {a.fps} fps, {a.seg:g} s)")
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Formato 3: imagen residual. Se mira un punto sobre colores "al reves" y despues sobre blanco: aparecen los colores reales.
+# Formato 4: mascara hueca. Un molde de cara visto desde adentro: el cerebro lo ve como cara que sale hacia vos.
+# ---------------------------------------------------------------------------------------------------------------
+RESIDUALES = ["residual_usa", "residual_corazon", "residual_circulos"]
+MASCARAS = ["mascara_hueca"]
+_SM = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts", "SpaceMono-Regular.ttf")
+
+
+def _estimulo(nombre, S=2):
+    """Imagen (RGB) del estimulo: colores complementarios sobre negro, con el punto de fijacion en el centro."""
+    im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); d = ImageDraw.Draw(im); cx, cy = W * S / 2, H * S * .5
+    if nombre == "residual_usa":           # bandera de EE.UU. en colores invertidos: cian = rojo, negro = blanco, amarillo = azul
+        fw = 900 * S; fh = fw / 1.9; x0, y0 = cx - fw / 2, cy - fh / 2
+        for k in range(13):
+            d.rectangle((x0, y0 + k * fh / 13, x0 + fw, y0 + (k + 1) * fh / 13 + 1), fill=(0, 255, 255) if k % 2 == 0 else (0, 0, 0))
+        cw, ch = fw * .4, fh * 7 / 13; d.rectangle((x0, y0, x0 + cw, y0 + ch), fill=(255, 255, 0))
+        for r in range(9):
+            n = 6 if r % 2 == 0 else 5
+            for c in range(n):
+                sx = x0 + cw * ((c + .5) / 6 if n == 6 else (c + 1) / 6); sy = y0 + ch * (r + .6) / 9.2; rr = fh * .032
+                d.polygon([(sx + (rr if k % 2 == 0 else rr * .4) * math.sin(k * math.pi / 5), sy - (rr if k % 2 == 0 else rr * .4) * math.cos(k * math.pi / 5)) for k in range(10)], fill=(0, 0, 0))
+    elif nombre == "residual_corazon":     # corazon cian: se ve rojo
+        pp = [(cx + 16 * math.sin(a) ** 3 * 26 * S, cy - 40 * S - (13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)) * 26 * S + 10 * S) for a in np.linspace(0, 2 * math.pi, 240)]
+        d.polygon(pp, fill=(0, 255, 255))
+    else:                                  # tres discos: cian, magenta y amarillo se ven rojo, verde y azul
+        R = 230 * S; off = 215 * S
+        for k, col in enumerate([(0, 255, 255), (255, 0, 255), (255, 255, 0)]):
+            a = -math.pi / 2 + k * 2 * math.pi / 3; x, y = cx + off * math.cos(a), cy + off * math.sin(a) + 20 * S
+            d.ellipse((x - R * .62, y - R * .62, x + R * .62, y + R * .62), fill=col)
+    return im.resize((W, H), Image.LANCZOS) if S > 1 else im
+
+
+def _punto(im, color, outline):
+    d = ImageDraw.Draw(im); cx, cy = W / 2, H * .5
+    d.ellipse((cx - 17, cy - 17, cx + 17, cy + 17), fill=outline); d.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=color); return im
+
+
+def render_residual(a):
+    fuente = lambda sz: ImageFont.truetype(_SM, sz)
+    T2 = 6; T1 = max(6, int(round(a.seg)) - T2)                       # segundos mirando el punto / segundos de blanco
+    est = _punto(_estimulo(a.forma), (255, 255, 255), (0, 0, 0)); blanco = _punto(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0, 0), (255, 255, 255))
+    def con_texto(base, col, arriba, abajo, grande=False):
+        im = base.copy(); d = ImageDraw.Draw(im); f1 = fuente(48.8)
+        for i, l in enumerate(envolver(d, arriba, f1, W * .7)): d.text((W / 2, 375 + i * 74), l, font=f1, fill=col, anchor="ms")
+        if abajo: d.text((W / 2, 1560), abajo, font=fuente(110 if grande else 40), fill=col, anchor="ms")
+        return np.asarray(im).tobytes()
+    cuadros = [con_texto(est, (255, 255, 255), a.arriba, str(T1 - k), True) for k in range(T1)] + [con_texto(blanco, (0, 0, 0), "", a.abajo)]
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
+           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
+           "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"]
+    if a.preview:
+        k = int(a.preview_t * (T1 + T2)); Image.frombytes("RGB", (W, H), cuadros[min(k, T1) if k < T1 else -1]).save("preview.png"); print("preview.png"); return
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    for k in range(T1 + T2):
+        for _ in range(a.fps): p.stdin.write(cuadros[k] if k < T1 else cuadros[-1])
+    p.stdin.close(); p.wait(); print(f"listo: {T1} s de color + {T2} s de blanco")
+
+
+def _altura(x, y):
+    """Relieve de una cara: domo + nariz, cejas, cuencas, pomulos, labios y menton. Devuelve z (0 fuera del ovalo)."""
+    g = lambda cx, cy, sx, sy, A: A * np.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2))
+    r2 = (x / .78) ** 2 + (y / 1.15) ** 2
+    z = .42 * np.clip(1 - r2, 0, None) ** .55
+    z += .19 * np.clip((y + .42) / .72, 0, 1) * np.exp(-(x / .12) ** 2) * np.clip((.36 - y) / .16, 0, 1)         # puente de la nariz
+    z += g(0, -.42, .15, .13, .17) + g(.15, -.46, .09, .07, .07) + g(-.15, -.46, .09, .07, .07)          # punta y alas
+    z -= g(.07, -.53, .04, .03, .07) + g(-.07, -.53, .04, .03, .07)                                    # fosas
+    z += g(.3, .39, .27, .07, .075) + g(-.3, .39, .27, .07, .075)                                      # cejas
+    z -= g(.32, .2, .17, .085, .14) + g(-.32, .2, .17, .085, .14)                                      # cuencas
+    z += g(.48, -.2, .18, .2, .07) + g(-.48, -.2, .18, .2, .07)                                        # pomulos
+    z += g(0, -.7, .24, .05, .06) + g(0, -.83, .2, .06, .06) - g(0, -.765, .22, .014, .05)             # labios y boca
+    z += g(0, -1.0, .22, .12, .09)                                                                      # menton
+    return z
+
+
+def render_mascara(a):
+    st = .0021; xs = np.arange(-.78, .78 + st, st); ys = np.arange(-1.15, 1.15 + st, st); X, Y = np.meshgrid(xs, ys)
+    ins = (X / .78) ** 2 + (Y / 1.15) ** 2 <= 1; Z = _altura(X, Y); gy, gx = np.gradient(Z, st)
+    N = np.stack([-gx, -gy, np.ones_like(Z)], -1); N /= np.linalg.norm(N, axis=-1, keepdims=True)
+    P = np.stack([X, Y, Z], -1)[ins]; Nn = N[ins]
+    ph = np.arange(0, 2 * math.pi, st / 1.1)                                                             # el borde del molde tiene grosor
+    for dz in np.arange(0, .16, st):
+        bx, by = .78 * np.cos(ph), 1.15 * np.sin(ph); bz = _altura(bx, by) - dz
+        nx, ny = bx / .78 ** 2, by / 1.15 ** 2; nn = np.hypot(nx, ny)
+        P = np.vstack([P, np.stack([bx, by, bz], -1)]); Nn = np.vstack([Nn, np.stack([nx / nn, ny / nn, np.zeros_like(nx)], -1)])
+    pal = PALETAS[a.paleta]; c_bg = rgb(a.fondo or pal[0]); c_tx = rgb(a.texto or pal[1]); base_c = np.array(rgb(a.color or pal[2]), dtype=np.float32)
+    texto = capa_texto(a.arriba, a.abajo, a.diseno); fondo = c_bg + (c_tx - c_bg) * texto[..., None]
+    S = W * a.figura / 100; cy = H * (.5 if a.diseno == "triangulo" else .47); tilt = math.radians(a.inclinacion or 8); ct, stl = math.cos(tilt), math.sin(tilt)
+    L = np.array([-.35, .55, .76]); L /= np.linalg.norm(L)
+    total = int(round(a.seg * a.fps)); vueltas = a.vueltas_min / 60 * a.seg if a.exacta else max(1, round(a.vueltas_min / 60 * a.seg)); sgn = -1 if a.reves else 1
+    def fotograma(i):
+        ang = sgn * 2 * math.pi * vueltas * i / total; ca, sa = math.cos(ang), math.sin(ang)
+        x = P[:, 0] * ca + P[:, 2] * sa; z = -P[:, 0] * sa + P[:, 2] * ca; y = P[:, 1]
+        nx = Nn[:, 0] * ca + Nn[:, 2] * sa; nz = -Nn[:, 0] * sa + Nn[:, 2] * ca; ny = Nn[:, 1]
+        y2 = y * ct - z * stl; z2 = y * stl + z * ct; ny2 = ny * ct - nz * stl; nz2 = ny * stl + nz * ct
+        flip = np.where(nz2 < 0, -1, 1)                                                                  # iluminacion de dos caras: se ve el adentro del molde
+        sh = .16 + .84 * np.clip((nx * L[0] + ny2 * L[1] + nz2 * L[2]) * flip, 0, 1) ** 1.1
+        px = np.rint(W / 2 + x * S).astype(np.int64); py = np.rint(cy - y2 * S).astype(np.int64)
+        order = np.argsort(z2); buf = np.full(W * H, -1.0, dtype=np.float32)
+        for ox, oy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            ix = px + ox; iy = py + oy; ok = (ix >= 0) & (ix < W) & (iy >= 0) & (iy < H); idx = (iy * W + ix)[ok]; vv = sh[ok]
+            o = np.argsort(z2[ok]); b2 = np.full(W * H, -1.0, dtype=np.float32); b2[idx[o]] = vv[o]
+            m = b2 >= 0; buf[m] = b2[m] if ox == 0 and oy == 0 else np.where(buf[m] >= 0, buf[m], b2[m])
+        sub = buf.reshape(H, W); cov = (sub >= 0)[..., None]
+        img = np.where(cov, np.clip(sub, 0, 1)[..., None] * base_c, fondo)
+        im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(.8))
+        return np.asarray(im).tobytes()
+    if a.preview: Image.frombytes("RGB", (W, H), fotograma(int(total * a.preview_t))).save("preview.png"); print("preview.png"); return
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(a.fps), "-i", "-",
+           "-vf", "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-maxrate", "10M", "-bufsize", "20M", "-profile:v", "high",
+           "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", a.salida or f"ilusion-{a.forma}-{a.fps}fps.mp4"]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    for i in range(total):
+        p.stdin.write(fotograma(i))
+        if i % a.fps == 0: print(f"\r{i // a.fps}/{int(a.seg)} s", end="", flush=True)
+    p.stdin.close(); p.wait(); print(f"\nlisto: {a.salida} ({vueltas} vueltas)")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--forma", default="esfera", choices=["esfera", "cilindro", "cubo", "toro", "helice", "cono", "piramide", "cono_invertido", "galaxia", "tornado", "saturno", "agujero_negro",
@@ -1446,7 +1564,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS)
+                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS + RESIDUALES + MASCARAS)
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
@@ -1478,6 +1596,8 @@ def main():
     a = ap.parse_args()
 
     if a.forma in CAMPOS: return render_campo(a)
+    if a.forma in RESIDUALES: return render_residual(a)
+    if a.forma in MASCARAS: return render_mascara(a)
     rng = np.random.default_rng(a.semilla)
     pts = formas(a.forma, a.puntos, rng, a.palabra)
     fijo = pts[:, 3] > .5 if pts.shape[1] >= 4 else np.zeros(len(pts), dtype=bool)   # puntos fijos en pantalla (no giran)
