@@ -869,7 +869,7 @@ def _piramide_video(n, rng):
     cl, ca_ = np.cumsum(LN), np.cumsum(AR); out = []
     for _ in range(n):
         if R() < .8:
-            a, b = E[min(int(np.searchsorted(cl, R() * cl[-1])), len(E) - 1)]; out.append(list(V[a] + (V[b] - V[a]) * R() + rng.normal(size=3) * .004))
+            a, b = E[min(int(np.searchsorted(cl, R() * cl[-1])), len(E) - 1)]; out.append(list(V[a] + (V[b] - V[a]) * R() + rng.normal(size=3) * .0022))
         else:
             a, b, c = F[min(int(np.searchsorted(ca_, R() * ca_[-1])), len(F) - 1)]; u, v = R(), R()
             if u + v > 1: u, v = 1 - u, 1 - v

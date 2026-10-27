@@ -864,7 +864,7 @@ const shapes = {
       AR = F.map(([a, b, c]) => { const u = d3(V[a], V[b]), v = d3(V[a], V[c]); return Math.hypot(u[1]*v[2] - u[2]*v[1], u[2]*v[0] - u[0]*v[2], u[0]*v[1] - u[1]*v[0])/2; }),
       pick = W_ => { let u = rnd()*W_.reduce((x, y) => x + y, 0), k = 0; while (u > W_[k] && k < W_.length - 1){ u -= W_[k]; k++; } return k; }, out = [];
     for (let i = 0; i < n; i++){
-      if (rnd() < .8){ const [a, b] = E[pick(LN)], u = rnd(); out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + gauss()*.004)); }       // aristas: líneas de puntos apretados
+      if (rnd() < .8){ const [a, b] = E[pick(LN)], u = rnd(); out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + gauss()*.0022)); }       // aristas: líneas de puntos apretados
       else { const [a, b, c] = F[pick(AR)]; let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; }
         out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + (V[c][k] - V[a][k])*v)); }                                                    // caras: puntos sueltos
     }
@@ -1001,7 +1001,7 @@ function labels(){
 const setV = (id, v) => { $(id).value = v; };
 $('shape').addEventListener('input', () => {                 // la pirámide del video viene con los valores que la copian tal cual
   if ($('shape').value !== 'pyrVideo') return;
-  setV('n', 7000); setV('s', 2.4); setV('v', 10); setV('t', 0); setV('d', 0); setV('z', 42); setV('b', 0); setV('e', 0); setV('r', 12); $('dis').value = 'triangulo'; $('rev').checked = false;
+  setV('n', 6000); setV('s', 2); setV('v', 10); setV('t', 0); setV('d', 0); setV('z', 42); setV('b', 0); setV('e', 0); setV('r', 12); $('dis').value = 'triangulo'; $('rev').checked = false;
   applyPalette(PALETAS['Clásico']); $('top').value = '¿Puedes invertir el giro solo con tu mente?'; $('bot').value = 'SIGUEME SI LO LOGRASTE.'; labels();
   $('msg').textContent = 'Ajustes cargados para copiar el video del triángulo: 10 vueltas por minuto, sin inclinación. Usá una duración de 6 o 12 s para que cierre la vuelta.';
 });
