@@ -96,6 +96,7 @@
     <option value="cubesCounter">Cubos que giran al revés</option>
     <option value="slices">Rodajas que giran al revés</option>
         <option value="pyrVideo">Pirámide (la de tu video)</option>
+        <option value="cycleArrows">Cilindro con flechas (la de tu video)</option>
     <option value="prismTri">Prisma triangular</option>
     <option value="prismHex">Prisma hexagonal</option>
     <option value="house">Casita 3D</option>
@@ -1000,6 +1001,22 @@ const shapes = {
       out.push([p[0] + gauss()*.003, p[1] + gauss()*.003, z, 0, k]); }
     return out;
   },
+  cycleArrows(n){  // dos flechas circulares (dorada y violeta) que envuelven un cilindro, como el video de referencia
+    const R = .8, Hh = .34, W2 = .2, L = .36, TE = Math.PI/2 - .24, out = [], pt = (t, y) => [R*Math.sin(t), y, R*Math.cos(t)], tg = t => [Math.cos(t), 0, -Math.sin(t)],
+      yc = (-Hh + Hh + W2)/2, tip = [0, 1, 2].map(k => pt(TE, yc)[k] + tg(TE)[k]*L), A = pt(TE, -Hh), B = pt(TE, Hh + W2), J = () => gauss()*.003, m = Math.round(n/2), gold = [];
+    for (let i = 0; i < m; i++){ const q = rnd(); let p;
+      if (q < .38) p = pt(-Math.PI/2 + rnd()*(TE + Math.PI/2), (rnd()*2 - 1)*Hh);                              // la cinta
+      else if (q < .5) p = pt(-Math.PI/2 + rnd()*(TE + Math.PI/2), Hh);                                          // borde de arriba
+      else if (q < .6) p = pt(rnd()*2*Math.PI, -Hh);                                                            // aro de abajo, completo
+      else if (q < .64) p = pt(-Math.PI/2, (rnd()*2 - 1)*Hh);                                                   // borde del arranque
+      else if (q < .82){ const a = rnd()*2*Math.PI, r = R*Math.sqrt(rnd()); p = [r*Math.sin(a), -Hh, r*Math.cos(a)]; }  // tapa de abajo
+      else { let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } if (q < .88){ v = 0; u = rnd(); const s = rnd() < .5 ? [B, tip] : [A, tip]; p = [0, 1, 2].map(k => s[0][k] + (s[1][k] - s[0][k])*u); }
+        else p = [0, 1, 2].map(k => A[k] + (B[k] - A[k])*u + (tip[k] - A[k])*v); }                               // la punta: triángulo
+      gold.push(p.map(c => c + J())); }
+    for (const p of gold) out.push([p[0], p[1], p[2], 0, 1]);
+    for (const p of gold) out.push([-p[0], -p[1], -p[2], 0, 0]);
+    return out;
+  },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -1152,7 +1169,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);

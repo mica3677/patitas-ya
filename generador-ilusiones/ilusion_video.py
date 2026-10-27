@@ -756,6 +756,29 @@ def _cilindro_partido(n, rng):
     return np.array(out)
 
 
+def _flechas_ciclo(n, rng):
+    R_, Hh, W2, L = .8, .34, .2, .36; TE = math.pi / 2 - .24; m = round(n / 2); r = rng.random
+    pt = lambda t, y: np.array([R_ * math.sin(t), y, R_ * math.cos(t)]); tg = np.array([math.cos(TE), 0, -math.sin(TE)])
+    yc = W2 / 2; tip = pt(TE, yc) + tg * L; A = pt(TE, -Hh); B = pt(TE, Hh + W2); g = []
+    for _ in range(m):
+        q = r()
+        if q < .38: p = pt(-math.pi / 2 + r() * (TE + math.pi / 2), (r() * 2 - 1) * Hh)
+        elif q < .5: p = pt(-math.pi / 2 + r() * (TE + math.pi / 2), Hh)
+        elif q < .6: p = pt(r() * 2 * math.pi, -Hh)
+        elif q < .64: p = pt(-math.pi / 2, (r() * 2 - 1) * Hh)
+        elif q < .82:
+            a = r() * 2 * math.pi; rr = R_ * math.sqrt(r()); p = np.array([rr * math.sin(a), -Hh, rr * math.cos(a)])
+        else:
+            u, v = r(), r()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            if q < .88: u = r(); s = (B, tip) if r() < .5 else (A, tip); p = s[0] + (s[1] - s[0]) * u
+            else: p = A + (B - A) * u + (tip - A) * v
+        g.append(p + rng.normal(size=3) * .003)
+    g = np.array(g); o = np.zeros((len(g), 5)); o[:, :3] = g; o[:, 4] = 1
+    p2 = np.zeros((len(g), 5)); p2[:, :3] = -g
+    return np.vstack([o, p2])
+
+
 def _mitades_contrarias(n, rng):
     R = rng.random; out = []; Rr, G = .85, .12
     for _ in range(n):
@@ -1255,6 +1278,7 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "toro_partido": return _toro_partido(n, rng)
     if nombre == "cono_partido": return _cono_partido(n, rng)
     if nombre == "cilindro_partido": return _cilindro_partido(n, rng)
+    if nombre == "flechas_ciclo": return _flechas_ciclo(n, rng)
     if nombre == "mitades_contrarias": return _mitades_contrarias(n, rng)
     if nombre == "esferas_contrarias": return _esferas_contrarias(n, rng)
     if nombre == "cubos_contrarios": return _cubos_contrarios(n, rng)
@@ -1318,7 +1342,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
+                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"])
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")
