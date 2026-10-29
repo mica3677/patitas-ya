@@ -1,2 +1,4 @@
 previews/
 __pycache__/
+# paquete para descargar del generador (se arma a partir de generador-ilusiones/)
+generador-ilusiones.zip
