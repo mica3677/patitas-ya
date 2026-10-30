@@ -903,6 +903,23 @@ def _piramide_video(n, rng):
     return np.array(out)
 
 
+def _bipiramide(n, rng):
+    """Diamante: dos piramides de base cuadrada unidas por la base. Aristas de puntos apretados (80%) y caras con puntos sueltos."""
+    R, G = rng.random, rng.normal; h, r = .95, .67
+    V = np.array([[0, h, 0], [0, -h, 0], [r, 0, 0], [0, 0, r], [-r, 0, 0], [0, 0, -r]], dtype=float); E = []; F = []
+    for k in range(4): a, b = 2 + k, 2 + (k + 1) % 4; E += [(0, a), (1, a), (a, b)]; F += [(0, a, b), (1, a, b)]
+    LN = np.array([np.linalg.norm(V[a] - V[b]) for a, b in E]); AR = np.array([np.linalg.norm(np.cross(V[b] - V[a], V[c] - V[a])) / 2 for a, b, c in F])
+    cl, ca_ = np.cumsum(LN), np.cumsum(AR); out = []
+    for _ in range(n):
+        if R() < .8:
+            a, b = E[min(int(np.searchsorted(cl, R() * cl[-1])), len(E) - 1)]; out.append(list(V[a] + (V[b] - V[a]) * R() + rng.normal(size=3) * .0035))
+        else:
+            a, b, c = F[min(int(np.searchsorted(ca_, R() * ca_[-1])), len(F) - 1)]; u, v = R(), R()
+            if u + v > 1: u, v = 1 - u, 1 - v
+            out.append(list(V[a] + (V[b] - V[a]) * u + (V[c] - V[a]) * v))
+    return np.array(out)
+
+
 def _casita(n, rng):
     """Casita con puerta, ventanas, chimenea y humo: la casa de un color (grupo 1) y los detalles de otro (grupo 0)."""
     R, G = rng.random, rng.normal; Wd, Lh, E, Rg, K, SH = .6, .6, .09, .69, .9, .23; out = []
@@ -1251,6 +1268,7 @@ def formas(nombre, n, rng, palabra="USA"):
     if nombre == "telarana": return _telarana(n, rng)
     if nombre == "texto3d": return _texto3d(n, rng, palabra)
     if nombre == "joya": return _joya(n, rng)
+    if nombre == "bipiramide": return _bipiramide(n, rng)
     if nombre == "bandera": return _bandera(n, rng)
     if nombre == "muneco_nieve": return _muneco(n, rng)
     if nombre == "baston_caramelo": return _baston(n, rng)
@@ -1321,7 +1339,7 @@ def capa_texto(arriba, abajo, diseno="clasico"):
     if diseno == "triangulo":     # medido sobre el video: Space Mono 48,8 px (titulo) y 38,5 px cursiva (abajo)
         carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
         f1 = ImageFont.truetype(os.path.join(carpeta, "SpaceMono-Regular.ttf"), 48.8)
-        for i, l in enumerate(envolver(d, arriba, f1, W * .7)):
+        for i, l in enumerate(envolver(d, arriba, f1, W * .78)):
             d.text((W / 2, 375 + i * 74), l, font=f1, fill=255, anchor="ms")
         f2 = ImageFont.truetype(os.path.join(carpeta, "SpaceMono-Italic.ttf"), 38.5)
         d.text((W / 2 + 1.5, 1500), abajo, font=f2, fill=255, anchor="ms")
@@ -1621,7 +1639,7 @@ def main():
                                                   "plasma", "explosion", "mitades", "cuencos", "planeta_cortado", "toro_cortado", "esfera_en_cubo", "cubo_puntos", "cubitos", "conos_anidados",
                                                   "cubo_partido", "esfera_diagonal", "toro_partido", "cono_partido", "cilindro_partido", "mitades_contrarias", "esferas_contrarias",
                                                   "cubos_contrarios", "rodajas",
-                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS + RESIDUALES + PAREDES)
+                                                  "flechas", "cadena", "torre_aros", "lapices", "escalera_cubos", "aspas", "flechas_ciclo", "piramide_video", "bipiramide", "prisma_triangular", "prisma_hexagonal", "casita", "buho", "gato", "hongo", "rampa", "escalera", "cruz", "marco", "torre_escalonada"] + CAMPOS + RESIDUALES + PAREDES)
     ap.add_argument("--puntos", type=int, default=2500)
     ap.add_argument("--tam", type=float, default=3.0, help="tamaño del punto en px")
     ap.add_argument("--vueltas-min", type=float, default=12, help="vueltas por minuto")

@@ -107,6 +107,7 @@
     <option value="cubesCounter">Cubos que giran al revés</option>
     <option value="slices">Rodajas que giran al revés</option>
         <option value="pyrVideo">Pirámide (la de tu video)</option>
+        <option value="bipyramid">Bipirámide (diamante)</option>
         <option value="cycleArrows">Cilindro con flechas (el de tu video)</option>
     <option value="prismTri">Prisma triangular</option>
     <option value="prismHex">Prisma hexagonal</option>
@@ -1028,6 +1029,18 @@ const shapes = {
   },
   hiddenStar(){ return []; }, hiddenHeart(){ return []; }, hiddenBolt(){ return []; }, hiddenCircle(){ return []; }, hiddenArrow(){ return []; }, hiddenWord(){ return []; },
   resUSA(){ return []; }, resHeart(){ return []; }, resDots(){ return []; }, resRainbow(){ return []; }, cafeWall(){ return []; },
+  bipyramid(n){    // diamante: dos pirámides de base cuadrada unidas por la base; aristas de puntos apretados y caras con puntos sueltos
+    const h = .95, r = .67, V = [[0, h, 0], [0, -h, 0], [r, 0, 0], [0, 0, r], [-r, 0, 0], [0, 0, -r]], E = [], F = [], out = [];
+    for (let k = 0; k < 4; k++){ const a = 2 + k, b = 2 + (k + 1) % 4; E.push([0, a], [1, a], [a, b]); F.push([0, a, b], [1, a, b]); }
+    const d3 = (a, b) => [b[0] - a[0], b[1] - a[1], b[2] - a[2]], LN = E.map(([a, b]) => Math.hypot(...d3(V[a], V[b]))),
+      AR = F.map(([a, b, c]) => { const u = d3(V[a], V[b]), v = d3(V[a], V[c]); return Math.hypot(u[1]*v[2] - u[2]*v[1], u[2]*v[0] - u[0]*v[2], u[0]*v[1] - u[1]*v[0])/2; }),
+      pick = W_ => { let u = rnd()*W_.reduce((x, y) => x + y, 0), k = 0; while (u > W_[k] && k < W_.length - 1){ u -= W_[k]; k++; } return k; };
+    for (let i = 0; i < n; i++){
+      if (rnd() < .8){ const [a, b] = E[pick(LN)], u = rnd(); out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + gauss()*.0035)); }
+      else { const [a, b, c] = F[pick(AR)]; let u = rnd(), v = rnd(); if (u + v > 1){ u = 1 - u; v = 1 - v; } out.push([0, 1, 2].map(k => V[a][k] + (V[b][k] - V[a][k])*u + (V[c][k] - V[a][k])*v)); }
+    }
+    return out;
+  },
   helix(n){
     const out = [];
     for (let i = 0; i < n; i++){ const s = i % 3, y = rnd()*2 - 1, a = y*3*Math.PI;
@@ -1176,7 +1189,7 @@ function drawResidual(){
   ctx.fillStyle = blanco ? '#000' : '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, 2*Math.PI); ctx.fill(); ctx.fillStyle = blanco ? '#fff' : '#000'; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, 2*Math.PI); ctx.fill();
   ctx.fillStyle = blanco ? '#000' : '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, 2*Math.PI); ctx.fill();
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = '400 48.8px "Space Mono", ui-monospace, Menlo, Consolas, monospace';
-  if (!blanco){ wrap($('top').value, W*0.7).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74)); ctx.font = '400 110px "Space Mono", ui-monospace, Menlo, Consolas, monospace'; ctx.fillText(String(Math.ceil(T1 - tt)), W/2, 1560); }
+  if (!blanco){ wrap($('top').value, W*0.78).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74)); ctx.font = '400 110px "Space Mono", ui-monospace, Menlo, Consolas, monospace'; ctx.fillText(String(Math.ceil(T1 - tt)), W/2, 1560); }
   else { ctx.font = 'italic 400 40px "Space Mono", ui-monospace, Menlo, Consolas, monospace'; ctx.fillText($('bot').value, W/2, 1560); }
 }
 
@@ -1192,7 +1205,7 @@ function drawCafe(){
   if (t > tr){ const u = Math.min(1, (t - tr)/1.2); ctx.strokeStyle = '#ff3c3c'; ctx.lineWidth = 4; ctx.beginPath();
     for (let r = 0; r <= filas; r++){ const yy = y0 + 3 + r*(h + 6); ctx.moveTo(x0 - 20, yy); ctx.lineTo(x0 - 20 + (ancho + 40)*u, yy); } ctx.stroke(); }
   ctx.fillStyle = $('ctt').value; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = '400 48.8px "Space Mono", ui-monospace, Menlo, Consolas, monospace';
-  wrap($('top').value, W*0.7).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74));
+  wrap($('top').value, W*0.78).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74));
   if (t > tr){ ctx.globalAlpha = Math.min(1, (t - tr)/1.2); ctx.font = 'italic 400 40px "Space Mono", ui-monospace, Menlo, Consolas, monospace'; ctx.fillText($('bot').value, W/2, 1560); ctx.globalAlpha = 1; }
 }
 
@@ -1229,7 +1242,7 @@ function draw(){
   ctx.fillStyle = $('ctt').value; ctx.textAlign = 'center';
   if (tri){            // medido sobre el video: Space Mono 48,8 px (título) y 38,5 px cursiva (abajo)
     ctx.textBaseline = 'alphabetic'; ctx.font = '400 48.8px "Space Mono", ui-monospace, Menlo, Consolas, monospace';
-    wrap($('top').value, W*0.7).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74));
+    wrap($('top').value, W*0.78).forEach((l, i) => ctx.fillText(l, W/2, 375 + i*74));
     ctx.font = 'italic 400 38.5px "Space Mono", ui-monospace, Menlo, Consolas, monospace';
     ctx.fillText($('bot').value, W/2 + 1.5, 1500);
   } else {
@@ -1282,6 +1295,12 @@ $('shape').addEventListener('input', () => {                 // imagen residual 
     $('msg').textContent = 'Pared de café: durante 9 s se ven torcidas; después aparecen líneas rojas que muestran que son paralelas.';
   }
 });
+$('shape').addEventListener('input', () => {                 // diamante: valores que se parecen al video de referencia
+  if ($('shape').value !== 'bipyramid') return;
+  setV('n', 6000); setV('s', 3); setV('v', 10); setV('t', 12); setV('d', 0); setV('z', 44); setV('b', 0); setV('e', 0); setV('r', 15); $('dis').value = 'triangulo'; $('rev').checked = false; $('ex').checked = false;
+  applyPalette(PALETAS['Clásico']); $('top').value = 'Can you reverse the spinning direction with your mind?'; $('bot').value = 'FOLLOW ME IF YOU MADE IT.'; labels();
+  $('msg').textContent = 'Bipirámide: aristas de puntos apretados y caras con puntos sueltos. Textos en inglés como en tu captura; cambialos si querés.';
+});
 ['n','shape','word'].forEach(i => $(i).addEventListener('input', () => { build(); labels(); }));
 if (document.fonts && document.fonts.load) { document.fonts.load('400 20px "Space Mono"').catch(() => {}); document.fonts.load('italic 400 20px "Space Mono"').catch(() => {}); }
 if (document.fonts && document.fonts.load) document.fonts.load('800 100px Poppins').then(() => { if ($('shape').value === 'text3d') build(); }).catch(() => {});
@@ -1293,7 +1312,7 @@ $('rnd').onclick = () => {
 };
 $('reseed').onclick = () => { seedBase = Math.floor(Math.random()*1e6)+1; build(); };
 
-const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',hiddenStar:'campo_estrella',hiddenHeart:'campo_corazon',hiddenBolt:'campo_rayo',hiddenCircle:'campo_circulo',hiddenArrow:'campo_flecha',hiddenWord:'campo_palabra',resUSA:'residual_usa',resHeart:'residual_corazon',resDots:'residual_circulos',resRainbow:'residual_arcoiris',cafeWall:'pared_cafe',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
+const PYFORMA = {sphere:'esfera',cylinder:'cilindro',cube:'cubo',torus:'toro',helix:'helice',cone:'cono',pyramid:'piramide',coneInv:'cono_invertido',galaxy:'galaxia',tornado:'tornado',saturn:'saturno',blackHole:'agujero_negro',pumpkin:'calabaza',hourglass:'reloj_arena',moon:'luna',tesseract:'teseracto',coil:'bobina',sierpinski:'sierpinski',football:'futbol_americano',basketball:'baloncesto',soccer:'futbol',ufo:'ovni',rocket:'cohete',star:'estrella',snowflake:'copo',tree:'arbol_navidad',ghost:'fantasma',skull:'calavera',web:'telarana',text3d:'texto3d',gem:'joya',flag:'bandera',snowman:'muneco_nieve',candyCane:'baston_caramelo',dice:'dado',coin:'moneda',fibSphere:'esfera_fibonacci',jellyfish:'medusa',butterfly:'mariposa',world:'planeta',oak:'arbol_fractal',comet:'cometa',nebula:'nebulosa',plasma:'plasma',burst:'explosion',halves:'mitades',bowls:'cuencos',cutplanet:'planeta_cortado',slicedTorus:'toro_cortado',cubeSphere:'esfera_en_cubo',cubeDots:'cubo_puntos',cubeSplit:'cubo_partido',sphereDiag:'esfera_diagonal',torusSplit:'toro_partido',coneSplit:'cono_partido',cylSplit:'cilindro_partido',halvesCounter:'mitades_contrarias',shellsCounter:'esferas_contrarias',cubesCounter:'cubos_contrarios',slices:'rodajas',pyrVideo:'piramide_video',bipyramid:'bipiramide',prismTri:'prisma_triangular',prismHex:'prisma_hexagonal',house:'casita',arrows:'flechas',chain:'cadena',stacker:'torre_aros',pencils:'lapices',rainbowStairs:'escalera_cubos',pinwheel:'aspas',cycleArrows:'flechas_ciclo',hiddenStar:'campo_estrella',hiddenHeart:'campo_corazon',hiddenBolt:'campo_rayo',hiddenCircle:'campo_circulo',hiddenArrow:'campo_flecha',hiddenWord:'campo_palabra',resUSA:'residual_usa',resHeart:'residual_corazon',resDots:'residual_circulos',resRainbow:'residual_arcoiris',cafeWall:'pared_cafe',owl:'buho',cat:'gato',mushroom:'hongo',ramp:'rampa',stairs:'escalera',jack:'cruz',frame:'marco',ziggurat:'torre_escalonada',voxels:'cubitos',nestedCones:'conos_anidados'};
 $('rec').onclick = async () => {
   const sel = $('shape'), nombre = sel.options[sel.selectedIndex].text;
   const pal = Object.entries(PALETAS).find(([,p]) => p.bg === $('cbg').value && p.tx === $('ctt').value && p.a === $('ca').value && p.b === $('cb').value);
